@@ -122,3 +122,122 @@ function detectBlobs(imageData, preset, options) {
   for (let y = crop.top; y < crop.bottom; y++) {
     for (let x = crop.left; x < crop.right; x++) {
       const idx = y * width + x;
+      if (!mask[idx] || visited[idx]) continue;
+
+      const blob = floodFill(mask, width, height, visited, idx);
+      if (blob.area < preset.minArea) continue;
+
+      detections.push(blob);
+    }
+  }
+
+  return detections;
+}
+
+export default function DotCounterApp() {
+  const canvasRef = useRef(null);
+  const overlayRef = useRef(null);
+  const fileRef = useRef(null);
+
+  const [imageUrl, setImageUrl] = useState(null);
+  const [detections, setDetections] = useState({});
+  const [showOverlay, setShowOverlay] = useState(true);
+
+  const [options, setOptions] = useState({
+    sensitivity: 3,
+    cropLeft: 0,
+    cropRight: 0.94,
+    cropTop: 0.18,
+    cropBottom: 0.88,
+  });
+
+  const totals = useMemo(() => {
+    return STATUS_PRESETS.map((p) => ({
+      ...p,
+      count: detections[p.key]?.length || 0,
+    }));
+  }, [detections]);
+
+  const analyze = () => {
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+    const result = {};
+    for (const preset of STATUS_PRESETS) {
+      result[preset.key] = detectBlobs(imageData, preset, options);
+    }
+    setDetections(result);
+  };
+
+  const loadFile = (file) => {
+    const url = URL.createObjectURL(file);
+    setImageUrl(url);
+
+    const img = new Image();
+    img.onload = () => {
+      const canvas = canvasRef.current;
+      const overlay = overlayRef.current;
+
+      const scale = Math.min(1, 1200 / img.width);
+      canvas.width = img.width * scale;
+      canvas.height = img.height * scale;
+      overlay.width = canvas.width;
+      overlay.height = canvas.height;
+
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+      analyze();
+    };
+    img.src = url;
+  };
+
+  const drawOverlay = () => {
+    const canvas = overlayRef.current;
+    const base = canvasRef.current;
+    const ctx = canvas.getContext("2d");
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    for (const preset of STATUS_PRESETS) {
+      const dots = detections[preset.key] || [];
+      ctx.strokeStyle = preset.swatch;
+
+      for (const d of dots) {
+        ctx.beginPath();
+        ctx.arc(d.x, d.y, 12, 0, Math.PI * 2);
+        ctx.lineWidth = 3;
+        ctx.stroke();
+      }
+    }
+  };
+
+  React.useEffect(() => {
+    drawOverlay();
+  }, [detections, showOverlay]);
+
+  return (
+    <div style={{ background: "#f8fafc", minHeight: "100vh", padding: 20 }}>
+      <h1 style={{ fontSize: 32, fontWeight: "bold", marginBottom: 10 }}>Dot Counter</h1>
+
+      <div style={{ marginBottom: 10 }}>
+        <input type="file" ref={fileRef} onChange={(e) => loadFile(e.target.files[0])} />
+        <button onClick={analyze} style={{ marginLeft: 10 }}>Analyze</button>
+      </div>
+
+      <div style={{ marginBottom: 20 }}>
+        {totals.map((t) => (
+          <div key={t.key} style={{ fontSize: 20, color: "#111" }}>
+            {t.label}: {t.count}
+          </div>
+        ))}
+      </div>
+
+      <div style={{ position: "relative" }}>
+        <canvas ref={canvasRef} />
+        <canvas ref={overlayRef} style={{ position: "absolute", top: 0, left: 0 }} />
+      </div>
+    </div>
+  );
+}
