@@ -91,13 +91,7 @@ const DEFAULT_SETTINGS = {
     { label: "Busy house", oldValue: "crowded", newValue: "room", icon: "HOME" },
     { label: "Smart devices", oldValue: "drop-offs", newValue: "steady", icon: "WIFI" },
   ],
-  billingSchedule: {
-    enabled: true,
-    title: "First few months",
-    note: "First two months free, then regular monthly billing begins.",
-    months: [
-      { label: "Month 1", amount: 0, note: "Promo month" },
-      { label: "Month 2", amount: 0, note: "Promo month" },
+        { label: "Month 2", amount: 0, note: "Promo month" },
       { label: "Month 3", amount: "AUTO", note: "First regular bill estimate" },
       { label: "Month 4", amount: "AUTO", note: "Regular monthly estimate" },
       { label: "Month 5", amount: "AUTO", note: "Regular monthly estimate" },
@@ -280,17 +274,7 @@ function mergeSettings(incoming) {
       incoming && Array.isArray(incoming.visualExamples)
         ? incoming.visualExamples
         : DEFAULT_SETTINGS.visualExamples,
-    billingSchedule: {
-      ...DEFAULT_SETTINGS.billingSchedule,
-      ...((incoming && incoming.billingSchedule) || {}),
-      months:
-        incoming &&
-        incoming.billingSchedule &&
-        Array.isArray(incoming.billingSchedule.months)
-          ? incoming.billingSchedule.months
-          : DEFAULT_SETTINGS.billingSchedule.months,
-    },
-  };
+      };
 
   if (!merged.primaryPlanId && merged.plans[0]) {
     merged.primaryPlanId = merged.plans[0].id;
@@ -858,15 +842,6 @@ function SavingsStep({
   setStep,
 }) {
   const saving = monthlySavings > 0;
-  const schedule = settings.billingSchedule || {};
-  const months = Array.isArray(schedule.months) ? schedule.months : [];
-
-  const resolveBillingAmount = (amount) => {
-    if (String(amount).toUpperCase() === "AUTO") return ourMonthly;
-    return cleanNumber(amount);
-  };
-
-  const firstMonthsTotal = months.reduce((sum, month) => sum + resolveBillingAmount(month.amount), 0);
 
   return (
     <section className="savings-stage">
@@ -901,27 +876,7 @@ function SavingsStep({
           </div>
         </div>
 
-        {schedule.enabled && (
-          <div className="billing-card">
-            <div className="billing-head">
-              <div>
-                <span className="label-red">{schedule.title || "First few months"}</span>
-                <p>{schedule.note}</p>
-              </div>
-              <strong>{money(firstMonthsTotal)}</strong>
-            </div>
-            <div className="billing-months">
-              {months.map((month, index) => {
-                const amount = resolveBillingAmount(month.amount);
-                return (
-                  <div className={amount === 0 ? "billing-month free" : "billing-month"} key={index}>
-                    <span>{month.label}</span>
-                    <strong>{amount === 0 ? "FREE" : money(amount)}</strong>
-                    <small>{month.note}</small>
-                  </div>
-                );
-              })}
-            </div>
+        </div>
           </div>
         )}
 
@@ -1199,59 +1154,7 @@ function AdminEditor({ settings, setSettings, resetDefaults, saveStatus, error }
         ))}
       </AdminSection>
 
-      <AdminSection title="First few months billing">
-        <div className="admin-card">
-          <label className="check-row">
-            <input
-              type="checkbox"
-              checked={!!settings.billingSchedule.enabled}
-              onChange={(e) => setSettings({ ...settings, billingSchedule: { ...settings.billingSchedule, enabled: e.target.checked } })}
-            />
-            Show billing breakdown
-          </label>
-          <Field
-            label="Billing title"
-            value={settings.billingSchedule.title}
-            onChange={(v) => setSettings({ ...settings, billingSchedule: { ...settings.billingSchedule, title: v } })}
-          />
-          <TextField
-            label="Billing note"
-            value={settings.billingSchedule.note}
-            onChange={(v) => setSettings({ ...settings, billingSchedule: { ...settings.billingSchedule, note: v } })}
-          />
-        </div>
-        {settings.billingSchedule.months.map((month, index) => (
-          <div className="admin-card" key={"billing-" + index}>
-            <div className="admin-row">
-              <Field
-                label="Month label"
-                value={month.label}
-                onChange={(v) => {
-                  const months = settings.billingSchedule.months.map((x, i) => i === index ? { ...x, label: v } : x);
-                  setSettings({ ...settings, billingSchedule: { ...settings.billingSchedule, months } });
-                }}
-              />
-              <Field
-                label="Amount"
-                value={String(month.amount)}
-                onChange={(v) => {
-                  const nextAmount = v.trim().toUpperCase() === "AUTO" ? "AUTO" : parseMoneyInput(v);
-                  const months = settings.billingSchedule.months.map((x, i) => i === index ? { ...x, amount: nextAmount } : x);
-                  setSettings({ ...settings, billingSchedule: { ...settings.billingSchedule, months } });
-                }}
-              />
-              <Field
-                label="Note"
-                value={month.note}
-                onChange={(v) => {
-                  const months = settings.billingSchedule.months.map((x, i) => i === index ? { ...x, note: v } : x);
-                  setSettings({ ...settings, billingSchedule: { ...settings.billingSchedule, months } });
-                }}
-              />
-            </div>
-          </div>
-        ))}
-      </AdminSection>
+      
 
       <AdminSection title="Plans">
         {settings.plans.map((plan) => (
