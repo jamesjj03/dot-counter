@@ -3271,59 +3271,55 @@ function GlobalStyles() {
       }
 
       .gift-toggle {
-        border: 2px solid #ddd;
-        border-radius: 16px;
-        background: #fff;
-        padding: 12px 14px;
-        font-weight: 1000;
-      }
-
-      .gift-toggle.active {
-        border-color: #d71920;
-        background: #d71920;
-        color: #fff;
-      }
-
-      .billing-month strong em {
-        display: block;
-        color: #999;
-        text-decoration: line-through;
-        font-size: 0.95rem;
-        letter-spacing: -0.02em;
-        font-style: normal;
-      }
-
-
-      .gift-toggle {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        gap: 10px;
-        border: 2px solid rgba(215, 25, 32, 0.22);
-        border-radius: 18px;
-        background: white;
+        width: auto;
+        border: 1px solid rgba(215, 25, 32, 0.22);
+        border-radius: 999px;
+        background: #ffffff;
         color: #171717;
-        padding: 14px 16px;
-        font-weight: 1000;
-        min-width: 210px;
+        padding: 9px 12px;
+        margin: 8px 0 12px;
+        display: inline-flex;
+        justify-content: flex-start;
+        align-items: center;
+        gap: 9px;
+        font-weight: 950;
+        box-shadow: none;
+        font-size: 0.9rem;
+      }
+
+      .gift-toggle::before {
+        content: "";
+        width: 18px;
+        height: 18px;
+        border-radius: 6px;
+        border: 2px solid #d71920;
+        background: #ffffff;
+        box-shadow: inset 0 0 0 3px #ffffff;
+      }
+
+      .gift-toggle span {
+        font-size: 0.92rem;
+      }
+
+      .gift-toggle strong {
+        color: #d71920;
+        font-size: 0.92rem;
+        letter-spacing: -0.02em;
       }
 
       .gift-toggle.active {
-        background: #d71920;
-        border-color: #d71920;
-        color: white;
+        background: #fff5f5;
+        color: #171717;
+        border-color: rgba(215, 25, 32, 0.45);
+        box-shadow: none;
       }
 
-      .gift-check {
-        width: 24px;
-        height: 24px;
-        border-radius: 7px;
-        border: 2px solid currentColor;
-        display: inline-grid;
-        place-items: center;
-        font-size: 16px;
-        line-height: 1;
-        font-weight: 1000;
+      .gift-toggle.active::before {
+        background: #d71920;
+      }
+
+      .gift-toggle.active strong {
+        color: #d71920;
       }
 
       @media (max-width: 880px) {
@@ -3353,8 +3349,7 @@ function GlobalStyles() {
         }
 
         .gift-toggle {
-          flex-direction: column;
-          text-align: center;
+          text-align: left;
         }
 
         .topbar {
