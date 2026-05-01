@@ -1183,15 +1183,10 @@ export default function DDMSharksOps() {
             {mode === "manual" && admin && <ManualBox manualRep={manualRep} setManualRep={setManualRep} polygon={polygon} clear={() => setPolygon([])} saveManual={saveManual} admin={admin} editMode={editMode} setEditMode={setEditMode} selectedTurf={selectedTurf} deleteSelected={() => selectedTurfId && deleteTurf(selectedTurfId)} />}
             {admin && <RepFilter selectedRep={selectedRep} setSelectedRep={setSelectedRep} />}
             {mode === "count" && admin && <Tuning options={app.options} setOptions={updateOptions} reCount={reCount} />}
-            {mode === "sales" && <SalesDoorControls sales={app.sales || DEFAULT_APP.sales} patchSales={patchSales} />}
           </aside>
 
           <section className="space-y-4">
-            {mode === "sales" ? (
-              <SalesFlow sales={app.sales || DEFAULT_APP.sales} patchSales={patchSales} />
-            ) : mode === "pricing" && admin ? (
-              <PricingAdmin sales={app.sales || DEFAULT_APP.sales} updateSales={updateSales} />
-            ) : mode === "team" ? (
+            {mode === "team" ? (
               <TeamView teamStats={teamStats} teamRep={teamRep} setTeamRep={setTeamRep} teamTurfs={teamTurfs} admin={admin} deleteTurf={deleteTurf} setSelectedRep={setSelectedRep} setMode={setMode} />
             ) : mode === "areas" && admin ? (
               <AreaDeck areas={app.areas} switchArea={switchArea} setMode={setMode} admin={admin} />
@@ -1510,8 +1505,12 @@ function SharkBg() {
 
 function Header({ mode, setMode, admin }) {
   const tabs = admin
-    ? [["sales", <DollarSign />, "Sales"], ["pricing", <Percent />, "Pricing"], ["areas", <Layers />, "Areas"], ["upload", <Upload />, "Upload"], ["count", <Target />, "Count"], ["erase", <Eraser />, "Erase"], ["auto", <Split />, "Auto"], ["manual", <Scissors />, "Cut"], ["team", <Users />, "Team"]]
-    : [["sales", <DollarSign />, "Sales"], ["manual", <Map />, "Map"], ["team", <Users />, "Team"]];
+    ? [["areas", <Layers />, "Areas"], ["upload", <Upload />, "Upload"], ["count", <Target />, "Count"], ["erase", <Eraser />, "Erase"], ["auto", <Split />, "Auto"], ["manual", <Scissors />, "Map"], ["team", <Users />, "Team"]]
+    : [["manual", <Map />, "Map"], ["team", <Users />, "Team"]];
+
+  const openSalesPage = () => {
+    if (typeof window !== "undefined") window.location.href = "/sales";
+  };
 
   return (
     <header className="mb-3 rounded-[1.25rem] border border-[#f5c542]/15 bg-[#1b1410]/90 p-3 text-center shadow-xl shadow-black/30 backdrop-blur-xl sm:p-4">
@@ -1524,12 +1523,15 @@ function Header({ mode, setMode, admin }) {
             <span className="bg-gradient-to-r from-[#f7f3ea] via-[#f5c542] to-[#ef4444] bg-clip-text text-transparent">DDM SHARKS</span>
           </h1>
         </div>
-        <div className={`grid w-full max-w-4xl gap-1.5 rounded-2xl bg-black/70 p-1.5 ${admin ? "grid-cols-3 sm:grid-cols-5 lg:grid-cols-9" : "grid-cols-3 sm:max-w-xl"}`}>
+        <div className={`grid w-full max-w-4xl gap-1.5 rounded-2xl bg-black/70 p-1.5 ${admin ? "grid-cols-4 sm:grid-cols-4 lg:grid-cols-8" : "grid-cols-3 sm:max-w-xl"}`}>
           {tabs.map(([key, icon, label]) => (
-            <button key={key} onClick={() => setMode(key)} className={`flex min-h-9 items-center justify-center rounded-xl px-2 text-xs font-black transition sm:min-h-10 ${mode === key ? "bg-[#f5c542] text-black shadow-lg shadow-[#f5c542]/20" : "text-white/70 hover:bg-white/10"}`}>
+            <button key={key} type="button" onClick={() => setMode(key)} className={`flex min-h-9 items-center justify-center rounded-xl px-2 text-xs font-black transition sm:min-h-10 ${mode === key ? "bg-[#f5c542] text-black shadow-lg shadow-[#f5c542]/20" : "text-white/70 hover:bg-white/10"}`}>
               {React.cloneElement(icon, { className: "mr-1 h-3.5 w-3.5" })}{label}
             </button>
           ))}
+          <button type="button" onClick={openSalesPage} className="flex min-h-9 items-center justify-center rounded-xl bg-white px-2 text-xs font-black text-red-700 transition hover:bg-red-50 sm:min-h-10">
+            <DollarSign className="mr-1 h-3.5 w-3.5" /> Sales
+          </button>
         </div>
       </div>
     </header>
@@ -1919,10 +1921,13 @@ function TeamView({ teamStats, teamRep, setTeamRep, teamTurfs, admin, deleteTurf
       <Panel>
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 className="flex items-center text-2xl font-black sm:text-3xl"><Users className="mr-2 h-7 w-7" /> Leads by Rep</h2>
-            <p className="text-sm font-bold text-white/45">Tap your name. This is the main view for the boys.</p>
+            <h2 className="flex items-center text-2xl font-black sm:text-3xl"><Users className="mr-2 h-7 w-7" /> Team Tool</h2>
+            <p className="text-sm font-bold text-white/45">Pick a rep, open their map, or jump to the customer-facing sales page.</p>
           </div>
-          <button onClick={() => { setSelectedRep(teamRep); setMode("manual"); }} className="rounded-xl bg-[#f5c542] px-4 py-2 text-sm font-black text-black">Open {teamRep}'s Map</button>
+          <div className="grid w-full grid-cols-2 gap-2 sm:w-auto">
+            <button type="button" onClick={() => { setSelectedRep(teamRep); setMode("manual"); }} className="rounded-xl bg-[#f5c542] px-4 py-3 text-sm font-black text-black">Open {teamRep}'s Map</button>
+            <button type="button" onClick={() => { if (typeof window !== "undefined") window.location.href = "/sales"; }} className="rounded-xl bg-white px-4 py-3 text-sm font-black text-red-700">Open Sales Page</button>
+          </div>
         </div>
         <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
           {REPS.map((r) => {
@@ -1947,7 +1952,10 @@ function TeamView({ teamStats, teamRep, setTeamRep, teamTurfs, admin, deleteTurf
             <h3 className="text-2xl font-black" style={{ color: repColor(teamRep) }}>{teamRep}'s Turf</h3>
             <p className="text-sm font-bold text-white/45">{activeStats.leads} leads • {activeStats.zones} zones</p>
           </div>
-          <button onClick={() => { setSelectedRep(teamRep); setMode("manual"); }} className="rounded-xl bg-black px-4 py-2 text-sm font-black text-[#f5c542]">Map</button>
+          <div className="flex gap-2">
+            <button type="button" onClick={() => { setSelectedRep(teamRep); setMode("manual"); }} className="rounded-xl bg-black px-4 py-2 text-sm font-black text-[#f5c542]">Map</button>
+            <button type="button" onClick={() => { if (typeof window !== "undefined") window.location.href = "/sales"; }} className="rounded-xl bg-white px-4 py-2 text-sm font-black text-red-700">Sales</button>
+          </div>
         </div>
         {teamTurfs.length === 0 ? (
           <p className="rounded-2xl bg-white/[0.08] p-6 text-center text-base font-bold text-white/50">No turf assigned yet.</p>
