@@ -30,6 +30,7 @@ const REPS = ["JJ", "Sam", "Zack", "Dylan", "Julian", "Chris", "Christian", "Jac
 const DB_NAME = "ddm-sharks-black-gold-v1";
 const STORE = "state";
 const KEY = "app";
+const TEAM_DATA_URL = "/team-data.json";
 
 const DEFAULT_APP = {
   areas: [],
@@ -102,6 +103,17 @@ async function clearDb() {
     tx.oncomplete = resolve;
     tx.onerror = resolve;
   });
+}
+
+async function loadTeamData() {
+  try {
+    const res = await fetch(`${TEAM_DATA_URL}?v=${Date.now()}`, { cache: "no-store" });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data?.areas ? data : null;
+  } catch {
+    return null;
+  }
 }
 
 function rgbToHsv(r, g, b) {
@@ -262,6 +274,12 @@ function countInside(detections, polygon) {
   };
 }
 
+function polygonBounds(points) {
+  const xs = points.map((p) => p.x);
+  const ys = points.map((p) => p.y);
+  return { minX: Math.min(...xs), minY: Math.min(...ys), maxX: Math.max(...xs), maxY: Math.max(...ys) };
+}
+
 function repColor(rep) {
   const colors = ["#d4af37", "#111827", "#7c3aed", "#c2410c", "#15803d", "#0369a1", "#be185d", "#a16207"];
   return colors[Math.abs(rep.split("").reduce((s, c) => s + c.charCodeAt(0), 0)) % colors.length];
@@ -406,17 +424,27 @@ export default function DDMSharksOps() {
   const [editMode, setEditMode] = useState(false);
   const [selectedTurfId, setSelectedTurfId] = useState(null);
   const [dragState, setDragState] = useState(null);
+  const [sharedLoaded, setSharedLoaded] = useState(false);
 
   useEffect(() => {
-    loadDb().then((saved) => {
-      if (saved) setApp({ ...DEFAULT_APP, ...saved });
+    Promise.all([loadDb(), loadTeamData()]).then(([saved, shared]) => {
+      const sharedHasAreas = shared?.areas?.length > 0;
+      const savedHasAreas = saved?.areas?.length > 0;
+
+      if (sharedHasAreas) {
+        setApp({ ...DEFAULT_APP, ...shared });
+        setSharedLoaded(true);
+      } else if (savedHasAreas) {
+        setApp({ ...DEFAULT_APP, ...saved });
+      }
+
       setLoaded(true);
     });
   }, []);
 
   useEffect(() => {
-    if (loaded) saveDb(app);
-  }, [app, loaded]);
+    if (loaded && admin) saveDb(app);
+  }, [app, loaded, admin]);
 
   const activeArea = useMemo(() => app.areas.find((a) => a.id === app.activeAreaId) || app.areas[0] || null, [app]);
   const activeShot = useMemo(() => activeArea?.screenshots?.find((s) => s.id === app.activeShotId) || activeArea?.screenshots?.[0] || null, [activeArea, app.activeShotId]);
@@ -441,25 +469,6 @@ export default function DDMSharksOps() {
     if (!activeArea) return;
     setApp((prev) => ({ ...prev, areas: prev.areas.map((a) => a.id === activeArea.id ? fn(a) : a) }));
   }, [activeArea]);
-
-  const deleteTurf = useCallback((turfId) => {
-    if (!admin) return;
-    updateActiveArea((area) => ({ ...area, turfs: (area.turfs || []).filter((t) => t.id !== turfId) }));
-    if (selectedTurfId === turfId) setSelectedTurfId(null);
-  }, [admin, updateActiveArea, selectedTurfId]);
-
-  useEffect(() => {
-    function handleKey(e) {
-      if (!editMode || !selectedTurfId || mode !== "manual") return;
-      if (e.key === "Delete" || e.key === "Backspace") {
-        e.preventDefault();
-        deleteTurf(selectedTurfId);
-      }
-    }
-
-    window.addEventListener("keydown", handleKey);
-    return () => window.removeEventListener("keydown", handleKey);
-  }, [editMode, selectedTurfId, mode, deleteTurf]);
 
   const switchArea = (areaId) => {
     const area = app.areas.find((a) => a.id === areaId);
@@ -571,6 +580,26 @@ export default function DDMSharksOps() {
     setMode("team");
   };
 
+  const deleteTurf = useCallback((turfId) => {
+    if (!admin) return;
+    updateActiveArea((area) => ({ ...area, turfs: (area.turfs || []).filter((t) => t.id !== turfId) }));
+    if (selectedTurfId === turfId) setSelectedTurfId(null);
+  }, [admin, updateActiveArea, selectedTurfId]);
+
+
+  useEffect(() => {
+    function handleKey(e) {
+      if (!editMode || !selectedTurfId || mode !== "manual") return;
+      if (e.key === "Delete" || e.key === "Backspace") {
+        e.preventDefault();
+        deleteTurf(selectedTurfId);
+      }
+    }
+
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [editMode, selectedTurfId, mode, deleteTurf]);
+
   const updateAssignments = (assignments) => setApp((prev) => ({ ...prev, assignments }));
   const updateOptions = (options) => setApp((prev) => ({ ...prev, options }));
 
@@ -603,7 +632,7 @@ export default function DDMSharksOps() {
   };
 
   const canvasClick = (e) => {
-    if (!activeShot) return;
+    if (!activeShot || dragState?.moved) return;
     const { x, y } = getCanvasPoint(e);
 
     if (mode === "manual" && editMode) {
@@ -632,11 +661,12 @@ export default function DDMSharksOps() {
     setSelectedTurfId(turf.id);
     e.preventDefault();
     e.stopPropagation();
+    e.currentTarget.setPointerCapture?.(e.pointerId);
 
-    const vertexIndex = turf.points.findIndex((p) => Math.hypot(p.x - point.x, p.y - point.y) <= 18);
+    const vertexIndex = turf.points.findIndex((p) => Math.hypot(p.x - point.x, p.y - point.y) <= 22);
 
     if (vertexIndex !== -1) {
-      setDragState({ type: "vertex", turfId: turf.id, vertexIndex });
+      setDragState({ type: "vertex", turfId: turf.id, vertexIndex, moved: false });
       return;
     }
 
@@ -645,6 +675,7 @@ export default function DDMSharksOps() {
       turfId: turf.id,
       start: point,
       originalPoints: turf.points,
+      moved: false,
     });
   };
 
@@ -653,6 +684,8 @@ export default function DDMSharksOps() {
 
     const point = getCanvasPoint(e);
     e.preventDefault();
+
+    setDragState((old) => old ? { ...old, moved: true } : old);
 
     updateActiveArea((area) => ({
       ...area,
@@ -680,7 +713,10 @@ export default function DDMSharksOps() {
     }));
   };
 
-  const stopDrag = () => setDragState(null);
+  const stopDrag = (e) => {
+    e?.currentTarget?.releasePointerCapture?.(e.pointerId);
+    setDragState(null);
+  };
 
   const drawOverlay = useCallback(() => {
     const overlay = overlayRef.current;
@@ -720,56 +756,27 @@ export default function DDMSharksOps() {
     <main className="min-h-screen bg-[#f7f3ea] text-[#111111]" style={{ fontFamily: "Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif" }}>
       <SharkBg />
       <section className="relative mx-auto max-w-[1540px] px-4 py-5 sm:px-7 lg:px-10">
-        <Header mode={mode} setMode={setMode} />
+        <Header mode={mode} setMode={setMode} admin={admin} />
         <div className="grid gap-5 xl:grid-cols-[440px_1fr]">
           <aside className="space-y-5">
-            <Board totals={totals} activeArea={activeArea} activeShot={activeShot} />
-            <Admin admin={admin} pin={pin} setPin={setPin} unlock={() => { if (pin.trim() === "6969") { setAdmin(true); setPin(""); } }} exportData={exportData} resetData={resetData} />
-            <Areas areas={app.areas} activeArea={activeArea} activeShot={activeShot} switchArea={switchArea} switchShot={switchShot} newAreaName={newAreaName} setNewAreaName={setNewAreaName} createArea={createArea} deleteArea={deleteArea} admin={admin} />
-            {mode === "upload" && <UploadBox fileRef={fileRef} upload={upload} admin={admin} />}
-            {mode === "auto" && <AutoBox assignments={app.assignments} setAssignments={updateAssignments} totals={totals} autoThis={autoThis} autoArea={autoArea} admin={admin} />}
-            {mode === "manual" && (
-              <ManualBox
-                manualRep={manualRep}
-                setManualRep={setManualRep}
-                polygon={polygon}
-                clear={() => setPolygon([])}
-                saveManual={saveManual}
-                admin={admin}
-                editMode={editMode}
-                setEditMode={setEditMode}
-                selectedTurf={selectedTurf}
-                deleteSelected={() => selectedTurfId && deleteTurf(selectedTurfId)}
-              />
-            )}
+            <Board totals={totals} activeArea={activeArea} activeShot={activeShot} sharedLoaded={sharedLoaded} />
+            <Admin admin={admin} pin={pin} setPin={setPin} unlock={() => { if (pin.trim() === "6969") { setAdmin(true); setPin(""); } }} exportData={exportData} resetData={resetData} compact={!admin} />
+            {admin && <Areas areas={app.areas} activeArea={activeArea} activeShot={activeShot} switchArea={switchArea} switchShot={switchShot} newAreaName={newAreaName} setNewAreaName={setNewAreaName} createArea={createArea} deleteArea={deleteArea} admin={admin} />}
+            {mode === "upload" && admin && <UploadBox fileRef={fileRef} upload={upload} admin={admin} />}
+            {mode === "auto" && admin && <AutoBox assignments={app.assignments} setAssignments={updateAssignments} totals={totals} autoThis={autoThis} autoArea={autoArea} admin={admin} />}
+            {mode === "manual" && admin && <ManualBox manualRep={manualRep} setManualRep={setManualRep} polygon={polygon} clear={() => setPolygon([])} saveManual={saveManual} admin={admin} editMode={editMode} setEditMode={setEditMode} selectedTurf={selectedTurf} deleteSelected={() => selectedTurfId && deleteTurf(selectedTurfId)} />}
             <RepFilter selectedRep={selectedRep} setSelectedRep={setSelectedRep} />
-            {mode === "count" && <Tuning options={app.options} setOptions={updateOptions} reCount={reCount} />}
+            {mode === "count" && admin && <Tuning options={app.options} setOptions={updateOptions} reCount={reCount} />}
           </aside>
 
           <section className="space-y-5">
             {mode === "team" ? (
               <TeamView teamStats={teamStats} teamRep={teamRep} setTeamRep={setTeamRep} teamTurfs={teamTurfs} admin={admin} deleteTurf={deleteTurf} />
             ) : mode === "areas" ? (
-              <AreaDeck areas={app.areas} switchArea={switchArea} setMode={setMode} />
+              <AreaDeck areas={app.areas} switchArea={switchArea} setMode={setMode} admin={admin} />
             ) : (
               <>
-                <MapPanel
-                  fileRef={fileRef}
-                  upload={upload}
-                  activeShot={activeShot}
-                  canvasRef={canvasRef}
-                  overlayRef={overlayRef}
-                  canvasClick={canvasClick}
-                  mode={mode}
-                  showDots={showDots}
-                  setShowDots={setShowDots}
-                  showTurf={showTurf}
-                  setShowTurf={setShowTurf}
-                  startDrag={startDrag}
-                  moveDrag={moveDrag}
-                  stopDrag={stopDrag}
-                  editMode={editMode}
-                />
+                <MapPanel fileRef={fileRef} upload={upload} activeShot={activeShot} canvasRef={canvasRef} overlayRef={overlayRef} canvasClick={canvasClick} mode={mode} showDots={showDots} setShowDots={setShowDots} showTurf={showTurf} setShowTurf={setShowTurf} uploadEnabled={admin} startDrag={startDrag} moveDrag={moveDrag} stopDrag={stopDrag} editMode={editMode} />
                 <TurfLegend turfs={visibleTurfs} />
               </>
             )}
@@ -794,11 +801,9 @@ function drawDot(ctx, dot, color) {
 
 function drawTurf(ctx, turf, selected = false) {
   if (!turf.points?.length) return;
-
   ctx.beginPath();
   turf.points.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y));
   ctx.closePath();
-
   const color = repColor(turf.rep);
   ctx.fillStyle = `${color}24`;
   ctx.strokeStyle = color;
@@ -810,7 +815,6 @@ function drawTurf(ctx, turf, selected = false) {
 
   if (selected) {
     ctx.save();
-
     ctx.beginPath();
     turf.points.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y));
     ctx.closePath();
@@ -820,19 +824,17 @@ function drawTurf(ctx, turf, selected = false) {
 
     turf.points.forEach((p) => {
       ctx.beginPath();
-      ctx.arc(p.x, p.y, 14, 0, Math.PI * 2);
+      ctx.arc(p.x, p.y, 15, 0, Math.PI * 2);
       ctx.fillStyle = "#ffffff";
       ctx.fill();
       ctx.lineWidth = 5;
       ctx.strokeStyle = "#111111";
       ctx.stroke();
-
       ctx.beginPath();
       ctx.arc(p.x, p.y, 5, 0, Math.PI * 2);
       ctx.fillStyle = "#f5c542";
       ctx.fill();
     });
-
     ctx.restore();
   }
 }
@@ -871,24 +873,27 @@ function SharkBg() {
   );
 }
 
-function Header({ mode, setMode }) {
-  const tabs = [["areas", <Layers />, "Areas"], ["upload", <Upload />, "Upload"], ["count", <Target />, "Count"], ["erase", <Eraser />, "Erase"], ["auto", <Split />, "Auto"], ["manual", <Scissors />, "Cut"], ["team", <Users />, "Team"]];
+function Header({ mode, setMode, admin }) {
+  const adminTabs = [["areas", <Layers />, "Areas"], ["upload", <Upload />, "Upload"], ["count", <Target />, "Count"], ["erase", <Eraser />, "Erase"], ["auto", <Split />, "Auto"], ["manual", <Scissors />, "Cut"], ["team", <Users />, "Team"]];
+  const viewerTabs = [["areas", <Layers />, "Map"], ["team", <Users />, "Team"]];
+  const tabs = admin ? adminTabs : viewerTabs;
+
   return (
-    <header className="mb-6 rounded-[2.25rem] border border-black/10 bg-white/85 p-6 text-center shadow-2xl shadow-black/10 backdrop-blur-xl">
-      <div className="mx-auto flex max-w-6xl flex-col items-center gap-5">
+    <header className="mb-5 rounded-[2rem] border border-black/10 bg-white/85 p-4 text-center shadow-xl shadow-black/10 backdrop-blur-xl">
+      <div className="mx-auto flex max-w-6xl flex-col items-center gap-4">
         <div>
-          <div className="mx-auto mb-4 inline-flex items-center gap-2 rounded-full bg-black px-4 py-2 text-base font-black text-[#f5c542] shadow-xl">
-            <Flame className="h-5 w-5" /> team turf command center
+          <div className="mx-auto mb-3 inline-flex items-center gap-2 rounded-full bg-black px-3 py-1.5 text-sm font-black text-[#f5c542] shadow-lg">
+            <Flame className="h-4 w-4" /> team turf command center
           </div>
-          <h1 className="text-6xl font-black tracking-[-0.07em] sm:text-8xl">
+          <h1 className="text-4xl font-black tracking-[-0.07em] sm:text-6xl">
             <span className="bg-gradient-to-r from-black via-[#2c2413] to-[#b8860b] bg-clip-text text-transparent">DDM SHARKS</span>
           </h1>
-          <p className="mx-auto mt-2 max-w-3xl text-xl font-bold text-black/60">Black, gold, clean, and built big for Sam’s iPad.</p>
+          <p className="mx-auto mt-1 max-w-3xl text-base font-bold text-black/60">Open your map, pick your name, and see your turf.</p>
         </div>
-        <div className="grid w-full max-w-5xl grid-cols-4 gap-2 rounded-[1.75rem] bg-black p-2 sm:grid-cols-7">
+        <div className={`grid w-full gap-2 rounded-[1.5rem] bg-black p-2 ${admin ? "grid-cols-4 sm:grid-cols-7" : "grid-cols-2 max-w-md"}`}>
           {tabs.map(([key, icon, label]) => (
-            <button key={key} onClick={() => setMode(key)} className={`flex min-h-14 items-center justify-center rounded-2xl px-3 text-base font-black transition ${mode === key ? "bg-[#f5c542] text-black" : "text-white/80 hover:bg-white/10"}`}>
-              {React.cloneElement(icon, { className: "mr-2 h-5 w-5" })}{label}
+            <button key={key} onClick={() => setMode(key)} className={`flex min-h-11 items-center justify-center rounded-xl px-3 text-sm font-black transition ${mode === key ? "bg-[#f5c542] text-black" : "text-white/80 hover:bg-white/10"}`}>
+              {React.cloneElement(icon, { className: "mr-2 h-4 w-4" })}{label}
             </button>
           ))}
         </div>
@@ -898,48 +903,49 @@ function Header({ mode, setMode }) {
 }
 
 function Panel({ children }) { return <div className="rounded-[2rem] border border-black/10 bg-white/85 p-6 shadow-xl shadow-black/10 backdrop-blur-xl">{children}</div>; }
-function Board({ totals, activeArea, activeShot }) { return <Panel><div className="flex items-start justify-between"><div><p className="text-sm font-black uppercase tracking-[.25em] text-[#9b7412]">Active Board</p><p className="text-7xl font-black tracking-[-0.06em]">{totals.total}</p><p className="text-base font-bold text-black/50">{activeArea?.name || "No area"}{activeShot ? ` • ${activeShot.name}` : ""}</p></div><div className="rounded-3xl bg-black p-4 text-[#f5c542]"><Crosshair className="h-10 w-10" /></div></div><div className="mt-5 grid grid-cols-2 gap-3"><Stat label="Leads" value={totals.leads} gold /><Stat label="Sold" value={totals.sold} pink /></div></Panel>; }
-function Stat({ label, value, gold, pink }) { return <div className={`${gold ? "bg-[#f5c542] text-black" : pink ? "bg-[#ff4f87] text-white" : "bg-black text-white"} rounded-3xl p-5 shadow-lg`}><p className="text-lg font-black">{label}</p><p className="text-5xl font-black tracking-[-0.05em]">{value}</p></div>; }
-function Admin({ admin, pin, setPin, unlock, exportData, resetData }) { return <Panel><div className="mb-4 flex items-center justify-between"><h2 className="flex items-center text-2xl font-black"><Crown className="mr-2 h-6 w-6 text-[#b8860b]" /> Sam Admin</h2><span className={`rounded-full px-4 py-2 text-sm font-black ${admin ? "bg-[#f5c542] text-black" : "bg-black/10"}`}>{admin ? "Unlocked" : "Locked"}</span></div>{!admin ? <div className="space-y-3"><input value={pin} onChange={(e) => setPin(e.target.value)} onKeyDown={(e) => e.key === "Enter" && unlock()} placeholder="Admin PIN" className="w-full rounded-2xl border-2 border-black/10 px-5 py-4 text-xl font-black outline-none focus:border-[#f5c542]" /><button onClick={unlock} className="w-full rounded-2xl bg-black px-5 py-4 text-xl font-black text-[#f5c542]">Unlock</button></div> : <div className="grid grid-cols-2 gap-2"><button onClick={exportData} className="flex items-center justify-center rounded-2xl bg-black px-5 py-4 text-lg font-black text-[#f5c542]"><Download className="mr-2 h-5 w-5" /> Export</button><button onClick={resetData} className="flex items-center justify-center rounded-2xl bg-red-600 px-5 py-4 text-lg font-black text-white"><RotateCcw className="mr-2 h-5 w-5" /> Reset</button></div>}</Panel>; }
+function Board({ totals, activeArea, activeShot, sharedLoaded }) { return <Panel><div className="flex items-start justify-between"><div><p className="text-xs font-black uppercase tracking-[.22em] text-[#9b7412]">Active Board</p><p className="text-6xl font-black tracking-[-0.06em]">{totals.total}</p><p className="text-sm font-bold text-black/50">{activeArea?.name || "No area"}{activeShot ? ` • ${activeShot.name}` : ""}</p>{sharedLoaded && <p className="mt-2 inline-flex rounded-full bg-[#f5c542] px-3 py-1 text-xs font-black text-black">Team data loaded</p>}</div><div className="rounded-2xl bg-black p-3 text-[#f5c542]"><Crosshair className="h-8 w-8" /></div></div><div className="mt-4 grid grid-cols-2 gap-3"><Stat label="Leads" value={totals.leads} gold /><Stat label="Sold" value={totals.sold} pink /></div></Panel>; }
+function Stat({ label, value, gold, pink }) { return <div className={`${gold ? "bg-[#f5c542] text-black" : pink ? "bg-[#ff4f87] text-white" : "bg-black text-white"} rounded-2xl p-4 shadow-lg`}><p className="text-lg font-black">{label}</p><p className="text-4xl font-black tracking-[-0.05em]">{value}</p></div>; }
+function Admin({ admin, pin, setPin, unlock, exportData, resetData, compact }) {
+  return (
+    <Panel>
+      <div className="mb-3 flex items-center justify-between">
+        <h2 className="flex items-center text-xl font-black"><Crown className="mr-2 h-5 w-5 text-[#b8860b]" /> Sam Admin</h2>
+        <span className={`rounded-full px-3 py-1.5 text-xs font-black ${admin ? "bg-[#f5c542] text-black" : "bg-black/10"}`}>{admin ? "Unlocked" : "Locked"}</span>
+      </div>
+      {!admin ? (
+        <div className="grid grid-cols-[1fr_auto] gap-2">
+          <input value={pin} onChange={(e) => setPin(e.target.value)} onKeyDown={(e) => e.key === "Enter" && unlock()} placeholder="Admin PIN" className="w-full rounded-xl border-2 border-black/10 px-4 py-3 text-base font-black outline-none focus:border-[#f5c542]" />
+          <button onClick={unlock} className="rounded-xl bg-black px-4 py-3 text-base font-black text-[#f5c542]">Unlock</button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-2">
+          <button onClick={exportData} className="flex items-center justify-center rounded-xl bg-black px-4 py-3 text-base font-black text-[#f5c542]"><Download className="mr-2 h-4 w-4" /> Export</button>
+          <button onClick={resetData} className="flex items-center justify-center rounded-xl bg-red-600 px-4 py-3 text-base font-black text-white"><RotateCcw className="mr-2 h-4 w-4" /> Reset</button>
+        </div>
+      )}
+      {compact && <p className="mt-3 text-sm font-bold text-black/45">Viewer mode is simple on purpose. Admin unlock shows the tools.</p>}
+    </Panel>
+  );
+}
+
 function Areas({ areas, activeArea, activeShot, switchArea, switchShot, newAreaName, setNewAreaName, createArea, deleteArea, admin }) { return <Panel><h2 className="mb-4 flex items-center text-2xl font-black"><Map className="mr-2 h-6 w-6 text-[#b8860b]" /> Areas</h2>{admin && <div className="mb-4 grid grid-cols-[1fr_auto] gap-2"><input value={newAreaName} onChange={(e) => setNewAreaName(e.target.value)} placeholder="New area" className="rounded-2xl border-2 border-black/10 px-5 py-4 text-lg font-black outline-none" /><button onClick={createArea} className="rounded-2xl bg-black px-5 text-[#f5c542]"><FolderPlus className="h-6 w-6" /></button></div>}<div className="space-y-3">{areas.map((a) => <div key={a.id} className={`rounded-3xl border-2 p-4 ${activeArea?.id === a.id ? "border-[#d4af37] bg-[#fff8df]" : "border-black/10 bg-white"}`}><div className="flex justify-between gap-3"><button onClick={() => switchArea(a.id)} className="text-left text-xl font-black">{a.name}</button>{admin && <button onClick={() => deleteArea(a.id)} className="text-red-500"><Trash2 /></button>}</div><p className="font-bold text-black/50">{a.screenshots?.length || 0} screenshots • {a.turfs?.length || 0} zones</p></div>)}</div>{activeArea?.screenshots?.length > 0 && <div className="mt-5 space-y-2"><p className="text-sm font-black uppercase tracking-widest text-black/40">Screenshots</p>{activeArea.screenshots.map((s, i) => <button key={s.id} onClick={() => switchShot(s.id)} className={`w-full rounded-2xl px-4 py-3 text-left text-lg font-black ${activeShot?.id === s.id ? "bg-black text-[#f5c542]" : "bg-black/5"}`}>{i + 1}. {s.name}</button>)}</div>}</Panel>; }
 function UploadBox({ fileRef, upload, admin }) { return <Panel><h2 className="mb-4 flex items-center text-2xl font-black"><Upload className="mr-2" /> Upload</h2><input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => upload(e.target.files)} /><button disabled={!admin} onClick={() => fileRef.current?.click()} className="flex w-full items-center justify-center rounded-2xl bg-black px-5 py-5 text-xl font-black text-[#f5c542] disabled:opacity-40"><ImageIcon className="mr-2" /> Upload Screenshots</button></Panel>; }
 function AutoBox({ assignments, setAssignments, totals, autoThis, autoArea, admin }) { const total = assignments.reduce((s, a) => s + Number(a.percent || 0), 0); const update = (i, field, value) => setAssignments(assignments.map((a, idx) => idx === i ? { ...a, [field]: value } : a)); return <Panel><h2 className="mb-4 flex items-center text-2xl font-black"><Percent className="mr-2 text-[#b8860b]" /> Auto Split</h2><p className="mb-4 rounded-2xl bg-[#f5c542] p-4 text-lg font-black">{totals.leads} leads • {total}% assigned</p><div className="space-y-4">{assignments.map((a, i) => <div key={i} className="rounded-3xl bg-black/5 p-4"><div className="mb-3 grid grid-cols-[1fr_auto_auto] gap-2"><select value={a.rep} onChange={(e) => update(i, "rep", e.target.value)} className="rounded-2xl px-4 py-3 text-lg font-black">{REPS.map((r) => <option key={r}>{r}</option>)}</select><span className="rounded-2xl bg-white px-4 py-3 text-lg font-black">{a.percent}%</span><button onClick={() => setAssignments(assignments.filter((_, idx) => idx !== i))} className="rounded-2xl bg-red-100 px-4 text-red-600"><Trash2 /></button></div><input type="range" min="0" max="100" step="5" value={a.percent} onChange={(e) => update(i, "percent", Number(e.target.value))} className="w-full accent-[#b8860b]" /></div>)}</div><div className="mt-4 grid grid-cols-3 gap-2"><button onClick={() => setAssignments([...assignments, { rep: REPS[0], percent: 0 }])} className="rounded-2xl bg-black/10 py-4 text-lg font-black">Add</button><button disabled={!admin} onClick={autoThis} className="rounded-2xl bg-black py-4 text-lg font-black text-[#f5c542] disabled:opacity-40">This SS</button><button disabled={!admin} onClick={autoArea} className="rounded-2xl bg-[#f5c542] py-4 text-lg font-black disabled:opacity-40">Whole Area</button></div></Panel>; }
-
 function ManualBox({ manualRep, setManualRep, polygon, clear, saveManual, admin, editMode, setEditMode, selectedTurf, deleteSelected }) {
   return (
     <Panel>
-      <h2 className="mb-4 flex items-center text-2xl font-black"><Scissors className="mr-2 text-[#b8860b]" /> Manual Cut</h2>
-
-      <select value={manualRep} onChange={(e) => setManualRep(e.target.value)} className="mb-3 w-full rounded-2xl border-2 border-black/10 px-5 py-4 text-xl font-black">
-        {REPS.map((r) => <option key={r}>{r}</option>)}
-      </select>
-
-      <p className="mb-3 rounded-2xl bg-black/5 p-4 text-base font-bold">
-        {editMode ? "Editor ON: click a saved zone, drag the whole zone, or drag its corner handles." : "Click the map to draw. No turf names, just the dude."}
-      </p>
-
-      <button
-        disabled={!admin}
-        onClick={() => setEditMode(!editMode)}
-        className={`mb-3 w-full rounded-2xl py-4 text-xl font-black disabled:opacity-40 ${editMode ? "bg-[#f5c542] text-black" : "bg-black text-[#f5c542]"}`}
-      >
-        Polygon Editor: {editMode ? "ON" : "OFF"}
-      </button>
-
+      <h2 className="mb-4 flex items-center text-xl font-black"><Scissors className="mr-2 text-[#b8860b]" /> Manual Cut</h2>
+      <select value={manualRep} onChange={(e) => setManualRep(e.target.value)} className="mb-3 w-full rounded-xl border-2 border-black/10 px-4 py-3 text-base font-black">{REPS.map((r) => <option key={r}>{r}</option>)}</select>
+      <p className="mb-3 rounded-xl bg-black/5 p-3 text-sm font-bold">{editMode ? "Editor ON: tap a saved zone, drag the whole zone, or drag a corner." : "Tap the map to draw. No turf names, just the dude."}</p>
+      <button disabled={!admin} onClick={() => setEditMode(!editMode)} className={`mb-3 w-full rounded-xl py-3 text-base font-black disabled:opacity-40 ${editMode ? "bg-[#f5c542] text-black" : "bg-black text-[#f5c542]"}`}>Polygon Editor: {editMode ? "ON" : "OFF"}</button>
       {editMode && selectedTurf && (
-        <button onClick={deleteSelected} className="mb-3 flex w-full items-center justify-center rounded-2xl bg-red-600 py-4 text-xl font-black text-white">
-          <Trash2 className="mr-2 h-5 w-5" /> Delete Selected Zone
-        </button>
+        <button onClick={deleteSelected} className="mb-3 flex w-full items-center justify-center rounded-xl bg-red-600 py-3 text-base font-black text-white"><Trash2 className="mr-2 h-4 w-4" /> Delete Selected Zone</button>
       )}
-
       <div className="grid grid-cols-2 gap-2">
-        <button disabled={!admin || polygon.length < 3 || editMode} onClick={saveManual} className="rounded-2xl bg-black py-4 text-xl font-black text-[#f5c542] disabled:opacity-40"><Save className="mr-2 inline" />Save</button>
-        <button onClick={clear} className="rounded-2xl bg-black/10 py-4 text-xl font-black">Clear</button>
+        <button disabled={!admin || polygon.length < 3 || editMode} onClick={saveManual} className="rounded-xl bg-black py-3 text-base font-black text-[#f5c542] disabled:opacity-40"><Save className="mr-2 inline h-4 w-4" />Save</button>
+        <button onClick={clear} className="rounded-xl bg-black/10 py-3 text-base font-black">Clear</button>
       </div>
-
-      <p className="mt-2 font-bold text-black/50">
-        {editMode ? selectedTurf ? `Selected: ${selectedTurf.rep} • ${selectedTurf.counts?.yellow || 0} leads • ${selectedTurf.counts?.pink || 0} sold` : "No zone selected." : `Points: ${polygon.length}`}
-      </p>
+      <p className="mt-2 text-sm font-bold text-black/50">{editMode ? selectedTurf ? `Selected: ${selectedTurf.rep} • ${selectedTurf.counts?.yellow || 0} leads • ${selectedTurf.counts?.pink || 0} sold` : "No zone selected." : `Points: ${polygon.length}`}</p>
     </Panel>
   );
 }
@@ -947,40 +953,35 @@ function ManualBox({ manualRep, setManualRep, polygon, clear, saveManual, admin,
 function RepFilter({ selectedRep, setSelectedRep }) { return <Panel><h2 className="mb-4 flex items-center text-2xl font-black"><Filter className="mr-2" /> Map Filter</h2><div className="grid grid-cols-2 gap-2">{["All", ...REPS].map((r) => <button key={r} onClick={() => setSelectedRep(r)} className={`rounded-2xl px-4 py-3 text-lg font-black ${selectedRep === r ? "bg-black text-[#f5c542]" : "bg-black/5"}`}>{r}</button>)}</div></Panel>; }
 function Tuning({ options, setOptions, reCount }) { return <Panel><h2 className="mb-4 flex items-center text-2xl font-black"><Wand2 className="mr-2" /> Tuning</h2><Slider label="Sensitivity" value={options.sensitivity} min={0} max={10} step={1} onChange={(v) => setOptions({ ...options, sensitivity: Number(v) })} /><Slider label="Dot Size" value={options.expectedDotArea} min={60} max={420} step={10} onChange={(v) => setOptions({ ...options, expectedDotArea: Number(v) })} /><button onClick={reCount} className="mt-4 w-full rounded-2xl bg-black py-4 text-xl font-black text-[#f5c542]">Recount</button></Panel>; }
 function Slider({ label, value, min, max, step, onChange }) { return <label className="mb-4 block"><div className="mb-2 flex justify-between text-lg font-black"><span>{label}</span><span>{value}</span></div><input type="range" min={min} max={max} step={step} value={value} onChange={(e) => onChange(e.target.value)} className="w-full accent-[#b8860b]" /></label>; }
-
-function MapPanel({ fileRef, upload, activeShot, canvasRef, overlayRef, canvasClick, mode, showDots, setShowDots, showTurf, setShowTurf, startDrag, moveDrag, stopDrag, editMode }) {
+function MapPanel({ fileRef, upload, activeShot, canvasRef, overlayRef, canvasClick, mode, showDots, setShowDots, showTurf, setShowTurf, uploadEnabled, startDrag, moveDrag, stopDrag, editMode }) {
   return (
-    <div className="rounded-[2.25rem] border border-black/10 bg-white/85 p-5 shadow-2xl shadow-black/10 backdrop-blur-xl">
+    <div className="rounded-[2rem] border border-black/10 bg-white/85 p-4 shadow-xl shadow-black/10 backdrop-blur-xl">
       <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => upload(e.target.files)} />
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="text-2xl font-black">{activeShot?.name || "No screenshot selected"}</p>
-          <p className="text-lg font-bold text-black/50">
-            {mode === "erase" ? "Click a false dot to delete it." : mode === "manual" && editMode ? "Polygon editor is on. Click zones, drag zones, or drag corners." : mode === "manual" ? "Click to draw a polygon." : "Saved turf stays visible."}
-          </p>
+          <p className="text-xl font-black">{activeShot?.name || "No screenshot selected"}</p>
+          <p className="text-sm font-bold text-black/50">{mode === "erase" ? "Click a false dot to delete it." : mode === "manual" && editMode ? "Editor is on. Tap zones, drag zones, or drag corners." : mode === "manual" ? "Click to draw a polygon." : "Saved turf stays visible."}</p>
         </div>
         <div className="flex gap-2">
-          <button onClick={() => setShowDots(!showDots)} className="rounded-2xl bg-black px-4 py-3 text-lg font-black text-[#f5c542]">{showDots ? <EyeOff className="mr-1 inline" /> : <Eye className="mr-1 inline" />}Dots</button>
-          <button onClick={() => setShowTurf(!showTurf)} className="rounded-2xl bg-black px-4 py-3 text-lg font-black text-[#f5c542]">{showTurf ? <EyeOff className="mr-1 inline" /> : <Eye className="mr-1 inline" />}Turf</button>
+          <button onClick={() => setShowDots(!showDots)} className="rounded-xl bg-black px-3 py-2 text-sm font-black text-[#f5c542]">{showDots ? <EyeOff className="mr-1 inline h-4 w-4" /> : <Eye className="mr-1 inline h-4 w-4" />}Dots</button>
+          <button onClick={() => setShowTurf(!showTurf)} className="rounded-xl bg-black px-3 py-2 text-sm font-black text-[#f5c542]">{showTurf ? <EyeOff className="mr-1 inline h-4 w-4" /> : <Eye className="mr-1 inline h-4 w-4" />}Turf</button>
         </div>
       </div>
       <div
         onClick={canvasClick}
-        onMouseMove={moveDrag}
-        onMouseUp={stopDrag}
-        onMouseLeave={stopDrag}
-        onDrop={(e) => { e.preventDefault(); upload(e.dataTransfer.files); }}
+        onPointerMove={moveDrag}
+        onPointerUp={stopDrag}
+        onPointerCancel={stopDrag}
+        onPointerLeave={stopDrag}
+        onDrop={(e) => { e.preventDefault(); if (uploadEnabled) upload(e.dataTransfer.files); }}
         onDragOver={(e) => e.preventDefault()}
-        className={`relative grid min-h-[720px] place-items-center overflow-auto rounded-[1.75rem] border-2 border-dashed border-black/15 bg-black/5 ${mode === "manual" || mode === "erase" ? "cursor-crosshair" : ""}`}
+        className={`relative grid min-h-[620px] touch-none place-items-center overflow-auto rounded-[1.5rem] border-2 border-dashed border-black/15 bg-black/5 ${mode === "manual" || mode === "erase" ? "cursor-crosshair" : ""}`}
+        style={{ touchAction: "none" }}
       >
-        {!activeShot && <div className="p-10 text-center"><Upload className="mx-auto mb-4 h-16 w-16" /><h2 className="text-4xl font-black">Upload screenshots for this area</h2></div>}
+        {!activeShot && <div className="p-10 text-center"><Upload className="mx-auto mb-4 h-14 w-14" /><h2 className="text-3xl font-black">Upload screenshots for this area</h2></div>}
         <div className={activeShot ? "relative max-w-full" : "hidden"}>
           <canvas ref={canvasRef} className="block max-w-full rounded-2xl" />
-          <canvas
-            ref={overlayRef}
-            onMouseDown={startDrag}
-            className="absolute left-0 top-0 block max-w-full rounded-2xl"
-          />
+          <canvas ref={overlayRef} onPointerDown={startDrag} className="absolute left-0 top-0 block max-w-full touch-none rounded-2xl" style={{ touchAction: "none" }} />
         </div>
       </div>
     </div>
@@ -1032,5 +1033,5 @@ function TurfLegend({ turfs }) {
   );
 }
 
-function AreaDeck({ areas, switchArea, setMode }) { return <Panel><h2 className="mb-5 flex items-center text-4xl font-black"><Layers className="mr-3 h-9 w-9" /> Areas Command Deck</h2>{areas.length === 0 ? <div className="rounded-3xl bg-black/5 p-10 text-center"><h3 className="text-4xl font-black">No areas yet</h3><p className="mt-2 text-xl font-bold text-black/50">Unlock Sam Admin, create an area, upload screenshots.</p></div> : <div className="grid gap-4 lg:grid-cols-2">{areas.map((a) => { const leads = (a.screenshots || []).reduce((s, shot) => s + (shot.detections?.lead?.length || 0), 0); return <button key={a.id} onClick={() => { switchArea(a.id); setMode("count"); }} className="rounded-[2rem] bg-black p-6 text-left text-white shadow-xl transition hover:-translate-y-1"><h3 className="text-3xl font-black">{a.name}</h3><p className="mt-1 text-lg font-bold text-white/60">{a.screenshots?.length || 0} screenshots • {a.turfs?.length || 0} zones</p><p className="mt-5 text-7xl font-black text-[#f5c542]">{leads}</p><p className="text-sm font-black uppercase tracking-widest text-white/50">leads</p></button>; })}</div>}</Panel>; }
+function AreaDeck({ areas, switchArea, setMode, admin }) { return <Panel><h2 className="mb-5 flex items-center text-4xl font-black"><Layers className="mr-3 h-9 w-9" /> Areas Command Deck</h2>{areas.length === 0 ? <div className="rounded-3xl bg-black/5 p-10 text-center"><h3 className="text-4xl font-black">No areas yet</h3><p className="mt-2 text-xl font-bold text-black/50">Unlock Sam Admin, create an area, upload screenshots.</p></div> : <div className="grid gap-4 lg:grid-cols-2">{areas.map((a) => { const leads = (a.screenshots || []).reduce((s, shot) => s + (shot.detections?.lead?.length || 0), 0); return <button key={a.id} onClick={() => { switchArea(a.id); setMode("count"); }} className="rounded-[2rem] bg-black p-6 text-left text-white shadow-xl transition hover:-translate-y-1"><h3 className="text-3xl font-black">{a.name}</h3><p className="mt-1 text-lg font-bold text-white/60">{a.screenshots?.length || 0} screenshots • {a.turfs?.length || 0} zones</p><p className="mt-5 text-7xl font-black text-[#f5c542]">{leads}</p><p className="text-sm font-black uppercase tracking-widest text-white/50">leads</p></button>; })}</div>}</Panel>; }
 function TeamView({ teamStats, teamRep, setTeamRep, teamTurfs, admin, deleteTurf }) { return <div className="space-y-5"><Panel><h2 className="mb-5 flex items-center text-4xl font-black"><Users className="mr-3 h-9 w-9" /> Team View</h2><div className="grid grid-cols-2 gap-3 md:grid-cols-4">{REPS.map((r) => <button key={r} onClick={() => setTeamRep(r)} className={`rounded-3xl p-5 text-xl font-black ${teamRep === r ? "bg-black text-[#f5c542]" : "bg-black/5"}`}>{r}</button>)}</div></Panel><Panel><h3 className="mb-4 text-3xl font-black">{teamRep}'s Turf</h3>{teamTurfs.length === 0 ? <p className="rounded-3xl bg-black/5 p-8 text-center text-xl font-bold text-black/50">No turf assigned yet.</p> : <div className="grid gap-4 xl:grid-cols-2">{teamTurfs.map((t) => <div key={t.id} className="rounded-[2rem] bg-black p-5 text-white shadow-xl"><div className="mb-3 flex justify-between"><div><p className="text-2xl font-black">{t.areaName}</p><p className="font-bold text-white/50">{t.imageName}</p></div>{admin && <button onClick={() => deleteTurf(t.id)} className="text-red-300"><Trash2 /></button>}</div><div className="grid grid-cols-3 gap-2"><Stat label="Total" value={t.counts?.total || 0} /><Stat label="Leads" value={t.counts?.yellow || 0} gold /><Stat label="Sold" value={t.counts?.pink || 0} pink /></div></div>)}</div>}</Panel></div>; }
