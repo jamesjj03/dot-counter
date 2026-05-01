@@ -1,1276 +1,657 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { createClient } from "@supabase/supabase-js";
 
-const STORAGE_KEY = "frontier-sales-flow-v1";
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const supabase = SUPABASE_URL && SUPABASE_ANON_KEY ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 
-const DEFAULT_DATA = {
-  companyName: "Fiber Internet",
-  repLine: "Official quote builder",
-  heroTitle: "A faster, cleaner internet connection.",
-  heroSubtitle:
-    "Fiber sends data as light through glass instead of pushing internet through old copper cable lines.",
-  fiberPoints: [
-    {
-      title: "Fiber is built for speed",
-      text: "Fiber has more room for modern internet use: streaming, gaming, work, phones, tablets, cameras, and smart TVs.",
-    },
-    {
-      title: "Better during busy hours",
-      text: "Cable neighborhoods can slow down when everyone is online. Fiber is designed to handle heavier usage cleanly.",
-    },
-    {
-      title: "Cleaner upload performance",
-      text: "Video calls, cloud backups, security cameras, and gaming all benefit when upload speed is not an afterthought.",
-    },
-  ],
+const CLOUD_STATE_ID = "frontier-sales-page";
+const ADMIN_PIN = "6969";
+
+const DEFAULT_SETTINGS = {
+  title: "Fiber Internet",
+  headerLine: "Official quote builder",
+  heroEyebrow: "Frontier Fiber",
+  heroHeadline: "Internet built for the whole house.",
+  heroSubline:
+    "A cleaner connection, stronger speed, and a quote you can actually see before switching.",
+  legalNote:
+    "Quote helper only. Address availability, taxes, fees, installation, and promotions must be confirmed.",
   plans: [
     {
       id: "fiber-500",
       name: "Fiber 500",
       speed: "500 Mbps",
-      price: 59.99,
+      price: 34.99,
       badge: "Most common switch",
-      details: "Great for everyday streaming, phones, laptops, school, and work-from-home use.",
+      details:
+        "Great for everyday streaming, phones, laptops, school, and work-from-home use.",
     },
     {
-      id: "fiber-1000",
+      id: "fiber-1-gig",
       name: "Fiber 1 Gig",
       speed: "1 Gig",
-      price: 79.99,
+      price: 49.99,
       badge: "Best value",
-      details: "Built for heavier homes with gaming, 4K streaming, smart devices, and multiple people online.",
+      details:
+        "Built for heavier homes with gaming, 4K streaming, smart devices, and multiple people online.",
     },
     {
-      id: "fiber-2000",
+      id: "fiber-2-gig",
       name: "Fiber 2 Gig",
       speed: "2 Gig",
-      price: 99.99,
+      price: 64.99,
       badge: "Power home",
-      details: "For homes that want maximum headroom and the fastest available experience.",
+      details:
+        "For homes that want maximum headroom and the fastest available experience.",
+    },
+    {
+      id: "fiber-5-gig",
+      name: "Fiber 5 Gig",
+      speed: "5 Gig",
+      price: 89.99,
+      badge: "Maximum headroom",
+      details:
+        "Built for heavy gaming, large downloads, big households, creators, and homes that want serious speed overhead.",
+    },
+    {
+      id: "fiber-7-gig",
+      name: "Fiber 7 Gig",
+      speed: "7 Gig",
+      price: 109.99,
+      badge: "Top tier",
+      details:
+        "The biggest available option for power users, connected homes, and people who want the fastest plan on the table.",
     },
   ],
   addons: [
-    { id: "landline", name: "Landline", price: 25, details: "Keep a home phone option if needed." },
-    { id: "youtube-tv", name: "YouTube TV", price: 82.99, details: "Live TV option without traditional cable boxes." },
-    { id: "wifi-extender", name: "Wi-Fi extender", price: 10, details: "Helps coverage in larger homes or tougher layouts." },
-  ],
-  installNotes: [
-    "Simple install appointment.",
-    "The goal is to make the switch easy, not turn it into a project.",
-    "Final taxes, fees, availability, and promo terms can vary by address.",
+    {
+      id: "landline",
+      name: "Landline",
+      price: 25,
+      details: "Keep a home phone option if needed.",
+    },
+    {
+      id: "youtube-tv",
+      name: "YouTube TV",
+      price: 82.99,
+      details: "Live TV option without traditional cable boxes.",
+    },
+    {
+      id: "wifi-extender",
+      name: "Wi-Fi Extender",
+      price: 10,
+      details: "Helps coverage in larger homes or tougher layouts.",
+    },
+    {
+      id: "wifi-security",
+      name: "Wi-Fi Security",
+      price: 6,
+      details: "Extra network protection for safer browsing and connected devices.",
+    },
   ],
 };
 
-function safeUid(prefix) {
-  return prefix + "-" + String(Date.now()) + "-" + Math.random().toString(16).slice(2);
+function uid() {
+  try {
+    if (typeof window !== "undefined" && window.crypto && typeof window.crypto.randomUUID === "function") {
+      return window.crypto.randomUUID();
+    }
+  } catch (e) {}
+  return String(Date.now()) + "-" + Math.random().toString(16).slice(2);
 }
 
 function money(value) {
   const n = Number(value || 0);
-  return "$" + n.toFixed(2);
+  return n.toLocaleString(undefined, { style: "currency", currency: "USD" });
 }
 
-function loadStored() {
-  try {
-    if (typeof window === "undefined") return null;
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    return JSON.parse(raw);
-  } catch (e) {
-    return null;
-  }
-}
-
-function saveStored(value) {
-  try {
-    if (typeof window === "undefined") return;
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(value));
-  } catch (e) {}
-}
-
-function parsePrice(value) {
-  const n = Number(String(value).replace(/[^0-9.]/g, ""));
+function safeNumber(value) {
+  const n = Number(value);
   return Number.isFinite(n) ? n : 0;
 }
 
-export default function SalesFlowPage() {
-  const [data, setData] = useState(DEFAULT_DATA);
-  const [ready, setReady] = useState(false);
-  const [step, setStep] = useState("fiber");
-  const [currentBill, setCurrentBill] = useState("100");
-  const [selectedPlanId, setSelectedPlanId] = useState("fiber-500");
-  const [selectedAddons, setSelectedAddons] = useState({});
-  const [adminOpen, setAdminOpen] = useState(false);
-  const [pin, setPin] = useState("");
-  const [admin, setAdmin] = useState(false);
+async function loadCloudSettings() {
+  if (!supabase) return null;
+  const { data, error } = await supabase
+    .from("app_state")
+    .select("data")
+    .eq("id", CLOUD_STATE_ID)
+    .single();
+  if (error) return null;
+  return data && data.data ? data.data : null;
+}
 
-  useEffect(function () {
-    const stored = loadStored();
-    if (stored && stored.plans && stored.addons) setData(stored);
-    setReady(true);
+async function saveCloudSettings(settings) {
+  if (!supabase) return { ok: false, error: "Missing Supabase environment variables." };
+  const clean = JSON.parse(JSON.stringify(settings));
+  const { error } = await supabase.from("app_state").upsert({
+    id: CLOUD_STATE_ID,
+    data: clean,
+    updated_at: new Date().toISOString(),
+  });
+  if (error) return { ok: false, error: error.message || "Cloud save failed." };
+  return { ok: true };
+}
+
+function mergeSettings(cloud) {
+  if (!cloud || typeof cloud !== "object") return DEFAULT_SETTINGS;
+  return {
+    ...DEFAULT_SETTINGS,
+    ...cloud,
+    plans: Array.isArray(cloud.plans) && cloud.plans.length ? cloud.plans : DEFAULT_SETTINGS.plans,
+    addons: Array.isArray(cloud.addons) ? cloud.addons : DEFAULT_SETTINGS.addons,
+  };
+}
+
+export default function FrontierSalesPage() {
+  const saveTimer = useRef(null);
+  const [settings, setSettings] = useState(DEFAULT_SETTINGS);
+  const [loaded, setLoaded] = useState(false);
+  const [admin, setAdmin] = useState(false);
+  const [pin, setPin] = useState("");
+  const [step, setStep] = useState("fiber");
+  const [currentBill, setCurrentBill] = useState(100);
+  const [selectedPlanId, setSelectedPlanId] = useState(DEFAULT_SETTINGS.plans[1].id);
+  const [selectedAddons, setSelectedAddons] = useState([]);
+  const [saveStatus, setSaveStatus] = useState("loading");
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let dead = false;
+    async function boot() {
+      setSaveStatus("loading");
+      const timeout = new Promise((resolve) => setTimeout(() => resolve(null), 2800));
+      const cloud = await Promise.race([loadCloudSettings().catch(() => null), timeout]);
+      if (dead) return;
+      const next = mergeSettings(cloud);
+      setSettings(next);
+      setSelectedPlanId(next.plans[1]?.id || next.plans[0]?.id || "");
+      setLoaded(true);
+      setSaveStatus(supabase ? (cloud ? "cloud live" : "cloud empty") : "local only");
+      if (!supabase) setError("Cloud save is off because Supabase env vars are missing.");
+    }
+    boot();
+    return () => {
+      dead = true;
+    };
   }, []);
 
-  useEffect(function () {
-    if (ready) saveStored(data);
-  }, [data, ready]);
+  useEffect(() => {
+    if (!loaded || !admin) return;
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    setSaveStatus("saving");
+    saveTimer.current = setTimeout(async () => {
+      const result = await saveCloudSettings(settings);
+      if (result.ok) {
+        setSaveStatus("saved to cloud");
+        setError("");
+      } else {
+        setSaveStatus("save failed");
+        setError(result.error || "Cloud save failed.");
+      }
+    }, 700);
+    return () => saveTimer.current && clearTimeout(saveTimer.current);
+  }, [settings, loaded, admin]);
 
   const selectedPlan = useMemo(
-    function () {
-      for (let i = 0; i < data.plans.length; i++) {
-        if (data.plans[i].id === selectedPlanId) return data.plans[i];
-      }
-      return data.plans[0];
-    },
-    [data.plans, selectedPlanId]
+    () => settings.plans.find((p) => p.id === selectedPlanId) || settings.plans[0] || null,
+    [settings.plans, selectedPlanId]
   );
 
   const chosenAddons = useMemo(
-    function () {
-      return data.addons.filter(function (a) {
-        return !!selectedAddons[a.id];
-      });
-    },
-    [data.addons, selectedAddons]
+    () => settings.addons.filter((a) => selectedAddons.indexOf(a.id) !== -1),
+    [settings.addons, selectedAddons]
   );
 
-  const addonTotal = chosenAddons.reduce(function (sum, a) {
-    return sum + Number(a.price || 0);
-  }, 0);
+  const quoteTotal = useMemo(() => {
+    const plan = selectedPlan ? safeNumber(selectedPlan.price) : 0;
+    const addons = chosenAddons.reduce((s, a) => s + safeNumber(a.price), 0);
+    return plan + addons;
+  }, [selectedPlan, chosenAddons]);
 
-  const planPrice = selectedPlan ? Number(selectedPlan.price || 0) : 0;
-  const ourTotal = planPrice + addonTotal;
-  const theirBill = parsePrice(currentBill);
-  const monthlySavings = theirBill - ourTotal;
-  const yearlySavings = monthlySavings * 12;
-  const threeYearSavings = monthlySavings * 36;
+  const savings = useMemo(() => {
+    const monthly = safeNumber(currentBill) - quoteTotal;
+    return {
+      monthly,
+      yearly: monthly * 12,
+      threeYear: monthly * 36,
+    };
+  }, [currentBill, quoteTotal]);
 
-  function unlock() {
-    if (pin.trim() === "6969") {
-      setAdmin(true);
-      setPin("");
-    }
+  function updatePlan(id, patch) {
+    setSettings((old) => ({
+      ...old,
+      plans: old.plans.map((p) => (p.id === id ? { ...p, ...patch } : p)),
+    }));
   }
 
-  function updateData(next) {
-    setData(next);
+  function updateAddon(id, patch) {
+    setSettings((old) => ({
+      ...old,
+      addons: old.addons.map((a) => (a.id === id ? { ...a, ...patch } : a)),
+    }));
+  }
+
+  function addPlan() {
+    const id = uid();
+    setSettings((old) => ({
+      ...old,
+      plans: [
+        ...old.plans,
+        { id, name: "New Fiber Plan", speed: "Speed", price: 0, badge: "Option", details: "Plan details." },
+      ],
+    }));
+    setSelectedPlanId(id);
+  }
+
+  function removePlan(id) {
+    setSettings((old) => {
+      const plans = old.plans.filter((p) => p.id !== id);
+      return { ...old, plans };
+    });
+    if (selectedPlanId === id) setSelectedPlanId(settings.plans[0]?.id || "");
+  }
+
+  function addAddon() {
+    setSettings((old) => ({
+      ...old,
+      addons: [...old.addons, { id: uid(), name: "New Add-on", price: 0, details: "Add-on details." }],
+    }));
+  }
+
+  function removeAddon(id) {
+    setSettings((old) => ({ ...old, addons: old.addons.filter((a) => a.id !== id) }));
+    setSelectedAddons((old) => old.filter((x) => x !== id));
   }
 
   function toggleAddon(id) {
-    setSelectedAddons(function (old) {
-      const next = {};
-      for (const k in old) next[k] = old[k];
-      next[id] = !next[id];
-      return next;
-    });
+    setSelectedAddons((old) => (old.indexOf(id) === -1 ? [...old, id] : old.filter((x) => x !== id)));
   }
 
-  if (!ready) {
+  function unlock() {
+    if (pin.trim() === ADMIN_PIN) {
+      setAdmin(true);
+      setPin("");
+      setStep("pricing");
+    }
+  }
+
+  if (!loaded) {
     return (
-      <main className="sf-page">
-        <style>{css}</style>
-        <div className="sf-loading">Loading quote builder...</div>
+      <main className="sales-page">
+        <Style />
+        <div className="loading-card">Loading quote builder...</div>
       </main>
     );
   }
 
   return (
-    <main className="sf-page">
-      <style>{css}</style>
+    <main className="sales-page">
+      <Style />
+      <header className="topbar">
+        <div>
+          <p className="eyebrow">{settings.heroEyebrow}</p>
+          <h1>{settings.title}</h1>
+          <p>{settings.headerLine}</p>
+        </div>
+        <div className="admin-box">
+          {admin ? (
+            <button className="ghost" onClick={() => setStep(step === "pricing" ? "fiber" : "pricing")}>{step === "pricing" ? "Done" : "Pricing"}</button>
+          ) : (
+            <>
+              <input value={pin} onChange={(e) => setPin(e.target.value)} onKeyDown={(e) => e.key === "Enter" && unlock()} placeholder="PIN" />
+              <button onClick={unlock}>Unlock</button>
+            </>
+          )}
+        </div>
+      </header>
 
-      <section className="sf-shell">
-        <header className="sf-header">
-          <div>
-            <div className="sf-kicker">Frontier-style fiber quote</div>
-            <h1>{data.companyName}</h1>
-            <p>{data.repLine}</p>
+      <nav className="steps">
+        {[
+          ["fiber", "1. Fiber"],
+          ["bill", "2. Bill"],
+          ["plans", "3. Plans"],
+          ["options", "4. Options"],
+          ["savings", "5. Savings"],
+        ].map(([key, label]) => (
+          <button key={key} onClick={() => setStep(key)} className={step === key ? "active" : ""}>{label}</button>
+        ))}
+        {admin && <button onClick={() => setStep("pricing")} className={step === "pricing" ? "active admin-step" : "admin-step"}>Pricing</button>}
+      </nav>
+
+      {error && <div className="notice bad">{error}</div>}
+      {admin && <div className="notice">Pricing unlocked • {saveStatus}</div>}
+
+      {step === "fiber" && (
+        <section className="hero-grid">
+          <div className="hero-card">
+            <p className="eyebrow red">Fiber vs cable</p>
+            <h2>{settings.heroHeadline}</h2>
+            <p>{settings.heroSubline}</p>
+            <div className="visual-row">
+              <ConnectionCard title="Fiber" subtitle="Dedicated light-based line" active />
+              <div className="versus">VS</div>
+              <ConnectionCard title="Coax" subtitle="Shared neighborhood cable" />
+            </div>
+            <button className="primary" onClick={() => setStep("bill")}>Start quote</button>
           </div>
-          <button className="sf-admin-pill" onClick={function () { setAdminOpen(!adminOpen); }}>
-            {admin ? "Pricing unlocked" : "Rep settings"}
-          </button>
-        </header>
 
-        {adminOpen && (
-          <section className="sf-admin-box">
-            {!admin ? (
-              <div className="sf-admin-login">
-                <input
-                  value={pin}
-                  onChange={function (e) { setPin(e.target.value); }}
-                  onKeyDown={function (e) { if (e.key === "Enter") unlock(); }}
-                  placeholder="PIN"
-                />
-                <button onClick={unlock}>Unlock</button>
-              </div>
-            ) : (
-              <AdminEditor data={data} setData={updateData} close={function () { setAdminOpen(false); }} />
-            )}
-          </section>
-        )}
-
-        <nav className="sf-steps">
-          <button className={step === "fiber" ? "active" : ""} onClick={function () { setStep("fiber"); }}>1. Fiber</button>
-          <button className={step === "bill" ? "active" : ""} onClick={function () { setStep("bill"); }}>2. Bill</button>
-          <button className={step === "plans" ? "active" : ""} onClick={function () { setStep("plans"); }}>3. Plans</button>
-          <button className={step === "addons" ? "active" : ""} onClick={function () { setStep("addons"); }}>4. Options</button>
-          <button className={step === "summary" ? "active" : ""} onClick={function () { setStep("summary"); }}>5. Savings</button>
-        </nav>
-
-        <section className="sf-card">
-          {step === "fiber" && (
-            <FiberStep data={data} next={function () { setStep("bill"); }} />
-          )}
-
-          {step === "bill" && (
-            <BillStep
-              currentBill={currentBill}
-              setCurrentBill={setCurrentBill}
-              next={function () { setStep("plans"); }}
-            />
-          )}
-
-          {step === "plans" && (
-            <PlansStep
-              plans={data.plans}
-              selectedPlanId={selectedPlanId}
-              setSelectedPlanId={setSelectedPlanId}
-              next={function () { setStep("addons"); }}
-            />
-          )}
-
-          {step === "addons" && (
-            <AddonsStep
-              addons={data.addons}
-              selectedAddons={selectedAddons}
-              toggleAddon={toggleAddon}
-              next={function () { setStep("summary"); }}
-            />
-          )}
-
-          {step === "summary" && (
-            <SummaryStep
-              data={data}
-              currentBill={currentBill}
-              setCurrentBill={setCurrentBill}
-              selectedPlan={selectedPlan}
-              chosenAddons={chosenAddons}
-              ourTotal={ourTotal}
-              monthlySavings={monthlySavings}
-              yearlySavings={yearlySavings}
-              threeYearSavings={threeYearSavings}
-              setStep={setStep}
-            />
-          )}
+          <div className="fiber-visual">
+            <div className="house big">Home</div>
+            <div className="fiber-line"><span /><span /><span /></div>
+            <div className="node">Fiber network</div>
+            <div className="visual-copy">
+              <h3>Upload. Download. Same clean pipe.</h3>
+              <p>Fiber is built to move data both ways with less drag, which matters when homes are streaming, gaming, working, uploading, and using smart devices all at once.</p>
+            </div>
+          </div>
         </section>
+      )}
 
-        <footer className="sf-footer">
-          <span>Quote helper only.</span>
-          <span>Address availability, taxes, fees, installation, and promotions must be confirmed.</span>
-        </footer>
-      </section>
+      {step === "bill" && (
+        <section className="card wide center-card">
+          <p className="eyebrow red">Current bill</p>
+          <h2>What are they paying now?</h2>
+          <p>Type their monthly internet bill. The quote updates instantly.</p>
+          <div className="bill-input">
+            <span>$</span>
+            <input inputMode="decimal" value={currentBill} onChange={(e) => setCurrentBill(e.target.value)} />
+          </div>
+          <button className="primary" onClick={() => setStep("plans")}>Compare plans</button>
+        </section>
+      )}
+
+      {step === "plans" && (
+        <section>
+          <div className="section-head">
+            <div>
+              <p className="eyebrow red">Plans</p>
+              <h2>Pick the plan that fits the house.</h2>
+            </div>
+            <button className="ghost" onClick={() => setStep("options")}>Next</button>
+          </div>
+          <div className="plan-grid">
+            {settings.plans.map((plan) => (
+              <button key={plan.id} className={selectedPlanId === plan.id ? "plan selected" : "plan"} onClick={() => setSelectedPlanId(plan.id)}>
+                <span className="badge">{plan.badge}</span>
+                <h3>{plan.name}</h3>
+                <p className="speed">{plan.speed}</p>
+                <p className="price">{money(plan.price)}<span>/mo</span></p>
+                <p>{plan.details}</p>
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {step === "options" && (
+        <section>
+          <div className="section-head">
+            <div>
+              <p className="eyebrow red">Options</p>
+              <h2>Add what they actually need.</h2>
+              <p>Keep it clean. Internet first, then add anything they actually use.</p>
+            </div>
+            <button className="ghost" onClick={() => setStep("savings")}>Show savings</button>
+          </div>
+          <div className="addon-grid">
+            {settings.addons.map((addon) => {
+              const picked = selectedAddons.indexOf(addon.id) !== -1;
+              return (
+                <button key={addon.id} className={picked ? "addon picked" : "addon"} onClick={() => toggleAddon(addon.id)}>
+                  <div>
+                    <h3>{addon.name}</h3>
+                    <p>{addon.details}</p>
+                  </div>
+                  <strong>{money(addon.price)}/mo</strong>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {step === "savings" && (
+        <section className="results-grid">
+          <div className="card summary-card">
+            <p className="eyebrow red">Quote</p>
+            <h2>{selectedPlan?.name || "Selected plan"}</h2>
+            <p className="price massive">{money(quoteTotal)}<span>/mo</span></p>
+            <p>{selectedPlan?.speed} internet{chosenAddons.length ? " + selected options" : ""}</p>
+            <div className="line-items">
+              <div><span>Current bill</span><strong>{money(currentBill)}</strong></div>
+              <div><span>Fiber plan</span><strong>{money(selectedPlan?.price)}</strong></div>
+              {chosenAddons.map((a) => <div key={a.id}><span>{a.name}</span><strong>{money(a.price)}</strong></div>)}
+              <div className="total"><span>New estimate</span><strong>{money(quoteTotal)}</strong></div>
+            </div>
+          </div>
+          <div className="savings-card">
+            <p className="eyebrow">Estimated savings</p>
+            <SavingsLine label="Per month" value={savings.monthly} />
+            <SavingsLine label="1 year" value={savings.yearly} />
+            <SavingsLine label="3 years" value={savings.threeYear} />
+            <p className="fine-print">{settings.legalNote}</p>
+            <div className="button-row">
+              <button className="ghost" onClick={() => setStep("plans")}>Change plan</button>
+              <button className="primary" onClick={() => setStep("bill")}>New quote</button>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {step === "pricing" && admin && (
+        <section className="admin-panel">
+          <div className="section-head">
+            <div>
+              <p className="eyebrow red">Pricing/settings</p>
+              <h2>Cloud-saved editor</h2>
+              <p>Anything changed here saves for everyone using this page.</p>
+            </div>
+            <button className="ghost" onClick={() => setSettings(DEFAULT_SETTINGS)}>Reset defaults</button>
+          </div>
+
+          <div className="edit-grid two">
+            <Field label="Page title" value={settings.title} onChange={(v) => setSettings((o) => ({ ...o, title: v }))} />
+            <Field label="Header line" value={settings.headerLine} onChange={(v) => setSettings((o) => ({ ...o, headerLine: v }))} />
+            <Field label="Hero eyebrow" value={settings.heroEyebrow} onChange={(v) => setSettings((o) => ({ ...o, heroEyebrow: v }))} />
+            <Field label="Hero headline" value={settings.heroHeadline} onChange={(v) => setSettings((o) => ({ ...o, heroHeadline: v }))} />
+          </div>
+          <TextField label="Hero subline" value={settings.heroSubline} onChange={(v) => setSettings((o) => ({ ...o, heroSubline: v }))} />
+          <TextField label="Legal note" value={settings.legalNote} onChange={(v) => setSettings((o) => ({ ...o, legalNote: v }))} />
+
+          <h3 className="editor-title">Plans</h3>
+          <div className="editor-list">
+            {settings.plans.map((plan) => (
+              <div className="editor-item" key={plan.id}>
+                <Field label="Name" value={plan.name} onChange={(v) => updatePlan(plan.id, { name: v })} />
+                <Field label="Speed" value={plan.speed} onChange={(v) => updatePlan(plan.id, { speed: v })} />
+                <Field label="Price" type="number" value={plan.price} onChange={(v) => updatePlan(plan.id, { price: safeNumber(v) })} />
+                <Field label="Badge" value={plan.badge} onChange={(v) => updatePlan(plan.id, { badge: v })} />
+                <TextField label="Plan details" value={plan.details} onChange={(v) => updatePlan(plan.id, { details: v })} />
+                <button className="remove" onClick={() => removePlan(plan.id)}>Remove plan</button>
+              </div>
+            ))}
+          </div>
+          <button className="primary" onClick={addPlan}>Add plan</button>
+
+          <h3 className="editor-title">Add-ons</h3>
+          <div className="editor-list">
+            {settings.addons.map((addon) => (
+              <div className="editor-item compact" key={addon.id}>
+                <Field label="Name" value={addon.name} onChange={(v) => updateAddon(addon.id, { name: v })} />
+                <Field label="Price" type="number" value={addon.price} onChange={(v) => updateAddon(addon.id, { price: safeNumber(v) })} />
+                <TextField label="Add-on details" value={addon.details} onChange={(v) => updateAddon(addon.id, { details: v })} />
+                <button className="remove" onClick={() => removeAddon(addon.id)}>Remove add-on</button>
+              </div>
+            ))}
+          </div>
+          <button className="primary" onClick={addAddon}>Add add-on</button>
+        </section>
+      )}
     </main>
   );
 }
 
-function FiberStep({ data, next }) {
+function ConnectionCard({ title, subtitle, active }) {
   return (
-    <div>
-      <div className="sf-hero-grid">
-        <div>
-          <div className="sf-red-label">Why fiber?</div>
-          <h2>{data.heroTitle}</h2>
-          <p className="sf-big-copy">{data.heroSubtitle}</p>
-        </div>
-        <div className="sf-fiber-visual">
-          <div className="sf-light-beam" />
-          <div className="sf-glass-line" />
-          <div className="sf-dot d1" />
-          <div className="sf-dot d2" />
-          <div className="sf-dot d3" />
-          <p>Light through fiber</p>
-        </div>
-      </div>
-
-      <div className="sf-point-grid">
-        {data.fiberPoints.map(function (p, i) {
-          return (
-            <div className="sf-point" key={i}>
-              <strong>{p.title}</strong>
-              <span>{p.text}</span>
-            </div>
-          );
-        })}
-      </div>
-
-      <button className="sf-primary" onClick={next}>Compare the bill</button>
+    <div className={active ? "connection active" : "connection"}>
+      <div className="icon-orb">{active ? "光" : "↯"}</div>
+      <h3>{title}</h3>
+      <p>{subtitle}</p>
+      <div className="bars"><span /><span /><span /></div>
     </div>
   );
 }
 
-function BillStep({ currentBill, setCurrentBill, next }) {
+function SavingsLine({ label, value }) {
+  const good = value >= 0;
   return (
-    <div>
-      <div className="sf-red-label">Current bill</div>
-      <h2>What are you paying right now?</h2>
-      <p className="sf-big-copy">
-        Put their internet bill here. This makes the rest of the conversation simple and visual.
-      </p>
-
-      <div className="sf-bill-input-wrap">
-        <span>$</span>
-        <input
-          value={currentBill}
-          onChange={function (e) { setCurrentBill(e.target.value); }}
-          inputMode="decimal"
-          placeholder="100"
-        />
-        <small>/ month</small>
-      </div>
-
-      <div className="sf-quick-bills">
-        {[70, 80, 90, 100, 120, 150].map(function (n) {
-          return <button key={n} onClick={function () { setCurrentBill(String(n)); }}>{money(n)}</button>;
-        })}
-      </div>
-
-      <button className="sf-primary" onClick={next}>Show plans</button>
+    <div className={good ? "saving positive" : "saving negative"}>
+      <span>{label}</span>
+      <strong>{good ? money(value) : "Adds " + money(Math.abs(value))}</strong>
     </div>
   );
 }
 
-function PlansStep({ plans, selectedPlanId, setSelectedPlanId, next }) {
+function Field({ label, value, onChange, type = "text" }) {
   return (
-    <div>
-      <div className="sf-red-label">Pick the fit</div>
-      <h2>Choose the fiber plan.</h2>
-      <div className="sf-plan-grid">
-        {plans.map(function (p) {
-          const active = selectedPlanId === p.id;
-          return (
-            <button
-              key={p.id}
-              className={active ? "sf-plan active" : "sf-plan"}
-              onClick={function () { setSelectedPlanId(p.id); }}
-            >
-              <span className="sf-badge">{p.badge}</span>
-              <strong>{p.name}</strong>
-              <em>{p.speed}</em>
-              <b>{money(p.price)}<small>/mo</small></b>
-              <p>{p.details}</p>
-            </button>
-          );
-        })}
-      </div>
-
-      <button className="sf-primary" onClick={next}>Add options</button>
-    </div>
+    <label className="field">
+      <span>{label}</span>
+      <input type={type} value={value} onChange={(e) => onChange(e.target.value)} />
+    </label>
   );
 }
 
-function AddonsStep({ addons, selectedAddons, toggleAddon, next }) {
+function TextField({ label, value, onChange }) {
   return (
-    <div>
-      <div className="sf-red-label">Options</div>
-      <h2>Add what they actually need.</h2>
-      <p className="sf-big-copy">
-        Keep it clean. Internet first, then add anything they actually use.
-      </p>
-
-      <div className="sf-addon-grid">
-        {addons.map(function (a) {
-          const active = !!selectedAddons[a.id];
-          return (
-            <button key={a.id} className={active ? "sf-addon active" : "sf-addon"} onClick={function () { toggleAddon(a.id); }}>
-              <strong>{a.name}</strong>
-              <b>{money(a.price)}<small>/mo</small></b>
-              <span>{a.details}</span>
-            </button>
-          );
-        })}
-      </div>
-
-      <button className="sf-primary" onClick={next}>Show savings</button>
-    </div>
+    <label className="field full">
+      <span>{label}</span>
+      <textarea value={value} onChange={(e) => onChange(e.target.value)} />
+    </label>
   );
 }
 
-function SummaryStep({
-  data,
-  currentBill,
-  setCurrentBill,
-  selectedPlan,
-  chosenAddons,
-  ourTotal,
-  monthlySavings,
-  yearlySavings,
-  threeYearSavings,
-  setStep,
-}) {
-  const saving = monthlySavings >= 0;
-
+function Style() {
   return (
-    <div>
-      <div className="sf-red-label">Side-by-side</div>
-      <h2>Here is the actual monthly comparison.</h2>
-
-      <div className="sf-summary-grid">
-        <div className="sf-price-card old">
-          <span>Current bill</span>
-          <div className="sf-mini-input">
-            <b>$</b>
-            <input value={currentBill} onChange={function (e) { setCurrentBill(e.target.value); }} inputMode="decimal" />
-          </div>
-          <small>per month</small>
-        </div>
-
-        <div className="sf-price-card new">
-          <span>Fiber package</span>
-          <strong>{money(ourTotal)}</strong>
-          <small>per month</small>
-        </div>
-
-        <div className={saving ? "sf-price-card save" : "sf-price-card higher"}>
-          <span>{saving ? "Monthly savings" : "Monthly difference"}</span>
-          <strong>{money(Math.abs(monthlySavings))}</strong>
-          <small>{saving ? "less per month" : "more per month"}</small>
-        </div>
-      </div>
-
-      <div className="sf-savings-strip">
-        <div>
-          <span>1 year</span>
-          <strong>{money(Math.abs(yearlySavings))}</strong>
-          <small>{saving ? "saved" : "difference"}</small>
-        </div>
-        <div>
-          <span>3 years</span>
-          <strong>{money(Math.abs(threeYearSavings))}</strong>
-          <small>{saving ? "saved" : "difference"}</small>
-        </div>
-      </div>
-
-      <div className="sf-package">
-        <h3>Selected package</h3>
-        <p><b>{selectedPlan ? selectedPlan.name : "Plan"}</b> — {selectedPlan ? selectedPlan.speed : ""} — {money(selectedPlan ? selectedPlan.price : 0)}/mo</p>
-        {chosenAddons.length ? (
-          chosenAddons.map(function (a) {
-            return <p key={a.id}><b>{a.name}</b> — {money(a.price)}/mo</p>;
-          })
-        ) : (
-          <p>No add-ons selected.</p>
-        )}
-      </div>
-
-      <div className="sf-notes">
-        {data.installNotes.map(function (n, i) {
-          return <p key={i}>{n}</p>;
-        })}
-      </div>
-
-      <div className="sf-bottom-actions">
-        <button onClick={function () { setStep("plans"); }}>Change plan</button>
-        <button onClick={function () { setStep("addons"); }}>Change options</button>
-        <button className="sf-primary small" onClick={function () { setStep("fiber"); }}>Start over</button>
-      </div>
-    </div>
+    <style jsx global>{`
+      html, body { margin: 0; min-height: 100%; background: #f7f7f8; color: #151515; }
+      * { box-sizing: border-box; }
+      button, input, textarea { font: inherit; }
+      button { -webkit-tap-highlight-color: transparent; }
+      .sales-page {
+        min-height: 100vh;
+        padding: 18px;
+        font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+        background:
+          radial-gradient(circle at top left, rgba(210, 0, 0, .16), transparent 34rem),
+          linear-gradient(180deg, #ffffff 0%, #f4f4f5 42%, #ececef 100%);
+      }
+      .loading-card, .card, .hero-card, .fiber-visual, .savings-card, .admin-panel {
+        background: rgba(255,255,255,.96);
+        border: 1px solid rgba(20,20,20,.08);
+        box-shadow: 0 24px 80px rgba(0,0,0,.11);
+        border-radius: 28px;
+      }
+      .loading-card { margin: 20vh auto; max-width: 420px; padding: 34px; text-align: center; font-weight: 900; color: #d71920; }
+      .topbar {
+        max-width: 1180px; margin: 0 auto 14px; display: flex; justify-content: space-between; gap: 16px; align-items: center;
+        background: #fff; border-radius: 24px; padding: 16px 18px; box-shadow: 0 12px 40px rgba(0,0,0,.08); border-top: 5px solid #d71920;
+      }
+      .topbar h1 { margin: 0; font-size: clamp(30px, 6vw, 58px); letter-spacing: -.06em; line-height: .9; color: #151515; }
+      .topbar p { margin: 4px 0 0; color: #666; font-weight: 750; }
+      .eyebrow { margin: 0 0 8px; text-transform: uppercase; letter-spacing: .18em; font-size: 12px; font-weight: 950; color: #555; }
+      .eyebrow.red { color: #d71920; }
+      .admin-box { display: flex; gap: 8px; align-items: center; }
+      .admin-box input { width: 88px; border: 1px solid #ddd; border-radius: 14px; padding: 12px; font-size: 16px; }
+      .admin-box button, .primary, .ghost, .steps button { border: 0; border-radius: 999px; padding: 13px 18px; font-weight: 950; cursor: pointer; }
+      .primary { background: #d71920; color: white; box-shadow: 0 12px 24px rgba(215,25,32,.22); }
+      .ghost { background: #151515; color: #fff; }
+      .steps { max-width: 1180px; margin: 0 auto 14px; display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; }
+      .steps button { flex: 0 0 auto; background: #fff; color: #555; border: 1px solid #eee; box-shadow: 0 8px 20px rgba(0,0,0,.05); }
+      .steps button.active { background: #d71920; color: white; }
+      .steps .admin-step { background: #111; color: white; }
+      .notice { max-width: 1180px; margin: 0 auto 14px; background: #fff7ed; border: 1px solid #fed7aa; color: #9a3412; padding: 12px 16px; border-radius: 18px; font-weight: 850; }
+      .notice.bad { background: #fef2f2; border-color: #fecaca; color: #991b1b; }
+      section { max-width: 1180px; margin: 0 auto; }
+      .hero-grid, .results-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+      .hero-card, .fiber-visual, .card, .savings-card, .admin-panel { padding: clamp(18px, 4vw, 34px); }
+      h2 { margin: 0 0 12px; font-size: clamp(32px, 5vw, 62px); letter-spacing: -.06em; line-height: .96; }
+      h3 { margin: 0 0 6px; }
+      p { line-height: 1.45; }
+      .visual-row { margin: 26px 0; display: grid; grid-template-columns: 1fr auto 1fr; gap: 10px; align-items: stretch; }
+      .versus { align-self: center; font-weight: 1000; color: #d71920; }
+      .connection { border-radius: 24px; background: #f1f1f3; border: 1px solid #e7e7ea; padding: 18px; text-align: center; }
+      .connection.active { background: #fff1f2; border-color: rgba(215,25,32,.25); }
+      .icon-orb { width: 58px; height: 58px; margin: 0 auto 10px; display: grid; place-items: center; border-radius: 999px; background: #151515; color: #fff; font-weight: 1000; }
+      .connection.active .icon-orb { background: #d71920; }
+      .bars { display: flex; justify-content: center; gap: 4px; margin-top: 12px; }
+      .bars span { width: 8px; border-radius: 8px; background: #d71920; display: block; }
+      .bars span:nth-child(1) { height: 18px; opacity: .45; } .bars span:nth-child(2) { height: 30px; opacity: .7; } .bars span:nth-child(3) { height: 42px; }
+      .fiber-visual { position: relative; overflow: hidden; min-height: 480px; background: linear-gradient(135deg, #fff, #fafafa 45%, #fee2e2); }
+      .house, .node { position: absolute; border-radius: 24px; padding: 18px; font-weight: 1000; box-shadow: 0 16px 40px rgba(0,0,0,.12); }
+      .house.big { left: 30px; top: 62px; width: 150px; height: 150px; display: grid; place-items: center; background: #151515; color: white; }
+      .node { right: 30px; top: 92px; background: #d71920; color: #fff; }
+      .fiber-line { position: absolute; left: 150px; right: 145px; top: 150px; height: 10px; background: #d71920; border-radius: 99px; box-shadow: 0 0 28px rgba(215,25,32,.55); }
+      .fiber-line span { position: absolute; top: -14px; width: 38px; height: 38px; border-radius: 999px; background: rgba(215,25,32,.18); animation: pulse 1.8s infinite; }
+      .fiber-line span:nth-child(1) { left: 10%; } .fiber-line span:nth-child(2) { left: 45%; animation-delay: .35s; } .fiber-line span:nth-child(3) { left: 78%; animation-delay: .7s; }
+      @keyframes pulse { 0%,100%{ transform: scale(.8); opacity:.25;} 50%{ transform: scale(1.2); opacity:1;} }
+      .visual-copy { position: absolute; left: 30px; right: 30px; bottom: 30px; background: rgba(255,255,255,.85); border: 1px solid rgba(0,0,0,.06); border-radius: 24px; padding: 20px; backdrop-filter: blur(12px); }
+      .center-card { max-width: 760px; text-align: center; }
+      .wide { padding: 34px; }
+      .bill-input { margin: 24px auto; max-width: 420px; display: flex; align-items: center; gap: 8px; background: #fff; border: 3px solid #d71920; border-radius: 28px; padding: 12px 18px; box-shadow: inset 0 0 0 1px #fff; }
+      .bill-input span { font-size: 42px; font-weight: 1000; color: #d71920; }
+      .bill-input input { min-width: 0; width: 100%; border: 0; outline: 0; font-size: 54px; font-weight: 1000; letter-spacing: -.06em; }
+      .section-head { display: flex; align-items: end; justify-content: space-between; gap: 16px; margin-bottom: 14px; }
+      .plan-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+      .plan, .addon { border: 2px solid transparent; border-radius: 26px; background: #fff; padding: 20px; text-align: left; box-shadow: 0 16px 44px rgba(0,0,0,.08); cursor: pointer; }
+      .plan.selected, .addon.picked { border-color: #d71920; background: #fff1f2; }
+      .badge { display: inline-block; border-radius: 999px; background: #151515; color: #fff; padding: 7px 11px; font-size: 11px; font-weight: 950; margin-bottom: 14px; }
+      .speed { color: #d71920; font-weight: 950; }
+      .price { margin: 10px 0; font-size: 38px; font-weight: 1000; letter-spacing: -.06em; color: #151515; }
+      .price span { font-size: 16px; color: #777; letter-spacing: 0; }
+      .addon-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+      .addon { display: flex; justify-content: space-between; gap: 18px; align-items: center; }
+      .addon strong { white-space: nowrap; color: #d71920; }
+      .summary-card .massive { font-size: clamp(52px, 7vw, 92px); }
+      .line-items { margin-top: 20px; border-top: 1px solid #eee; }
+      .line-items div { display: flex; justify-content: space-between; gap: 12px; padding: 13px 0; border-bottom: 1px solid #eee; font-weight: 850; }
+      .line-items .total { font-size: 20px; color: #d71920; }
+      .savings-card { background: linear-gradient(135deg, #d71920, #8b0006); color: white; }
+      .savings-card .eyebrow { color: rgba(255,255,255,.75); }
+      .saving { display: flex; justify-content: space-between; gap: 12px; align-items: center; background: rgba(255,255,255,.13); border: 1px solid rgba(255,255,255,.16); border-radius: 22px; padding: 18px; margin-bottom: 12px; font-weight: 950; }
+      .saving strong { font-size: clamp(24px, 5vw, 46px); letter-spacing: -.05em; }
+      .negative strong { color: #ffe4e6; }
+      .fine-print { margin-top: 18px; color: rgba(255,255,255,.76); font-weight: 750; }
+      .button-row { margin-top: 18px; display: flex; gap: 10px; flex-wrap: wrap; }
+      .admin-panel { margin-bottom: 40px; }
+      .edit-grid.two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+      .field { display: block; margin-bottom: 12px; }
+      .field span { display: block; margin-bottom: 6px; font-size: 12px; text-transform: uppercase; letter-spacing: .12em; font-weight: 950; color: #777; }
+      .field input, .field textarea { width: 100%; border: 1px solid #ddd; border-radius: 16px; padding: 13px 14px; outline: 0; background: #fff; font-size: 16px; }
+      .field textarea { min-height: 86px; resize: vertical; }
+      .editor-title { margin: 26px 0 12px; font-size: 26px; letter-spacing: -.04em; }
+      .editor-list { display: grid; gap: 12px; margin-bottom: 14px; }
+      .editor-item { display: grid; grid-template-columns: 1fr 1fr 140px 1fr; gap: 10px; background: #f7f7f8; border: 1px solid #eee; border-radius: 24px; padding: 14px; }
+      .editor-item .full { grid-column: 1 / -1; }
+      .editor-item.compact { grid-template-columns: 1fr 140px; }
+      .remove { grid-column: 1 / -1; border: 0; background: #111; color: #fff; border-radius: 14px; padding: 12px; font-weight: 950; }
+      @media (max-width: 850px) {
+        .sales-page { padding: 12px; }
+        .topbar { align-items: flex-start; flex-direction: column; }
+        .hero-grid, .results-grid, .plan-grid, .addon-grid, .edit-grid.two { grid-template-columns: 1fr; }
+        .visual-row { grid-template-columns: 1fr; }
+        .versus { text-align: center; }
+        .fiber-visual { min-height: 430px; }
+        .house.big { width: 110px; height: 110px; }
+        .node { right: 18px; }
+        .fiber-line { left: 110px; right: 95px; }
+        .section-head { align-items: stretch; flex-direction: column; }
+        .editor-item, .editor-item.compact { grid-template-columns: 1fr; }
+        .bill-input input { font-size: 44px; }
+      }
+    `}</style>
   );
 }
-
-function AdminEditor({ data, setData, close }) {
-  function updateField(field, value) {
-    const next = {};
-    for (const k in data) next[k] = data[k];
-    next[field] = value;
-    setData(next);
-  }
-
-  function updatePlan(index, field, value) {
-    const plans = data.plans.map(function (p, i) {
-      if (i !== index) return p;
-      const next = {};
-      for (const k in p) next[k] = p[k];
-      next[field] = field === "price" ? parsePrice(value) : value;
-      return next;
-    });
-    updateField("plans", plans);
-  }
-
-  function updateAddon(index, field, value) {
-    const addons = data.addons.map(function (a, i) {
-      if (i !== index) return a;
-      const next = {};
-      for (const k in a) next[k] = a[k];
-      next[field] = field === "price" ? parsePrice(value) : value;
-      return next;
-    });
-    updateField("addons", addons);
-  }
-
-  function addPlan() {
-    updateField("plans", data.plans.concat([{ id: safeUid("plan"), name: "New Plan", speed: "Speed", price: 59.99, badge: "Option", details: "Plan details." }]));
-  }
-
-  function addAddon() {
-    updateField("addons", data.addons.concat([{ id: safeUid("addon"), name: "New Add-on", price: 10, details: "Add-on details." }]));
-  }
-
-  function removePlan(index) {
-    updateField("plans", data.plans.filter(function (_, i) { return i !== index; }));
-  }
-
-  function removeAddon(index) {
-    updateField("addons", data.addons.filter(function (_, i) { return i !== index; }));
-  }
-
-  function reset() {
-    setData(DEFAULT_DATA);
-  }
-
-  return (
-    <div>
-      <div className="sf-admin-top">
-        <h3>Pricing/settings</h3>
-        <button onClick={close}>Done</button>
-      </div>
-
-      <label className="sf-admin-field">
-        Page title
-        <input value={data.companyName} onChange={function (e) { updateField("companyName", e.target.value); }} />
-      </label>
-
-      <label className="sf-admin-field">
-        Header line
-        <input value={data.repLine} onChange={function (e) { updateField("repLine", e.target.value); }} />
-      </label>
-
-      <h4>Plans</h4>
-      {data.plans.map(function (p, i) {
-        return (
-          <div className="sf-admin-item" key={p.id}>
-            <input value={p.name} onChange={function (e) { updatePlan(i, "name", e.target.value); }} placeholder="Plan name" />
-            <input value={p.speed} onChange={function (e) { updatePlan(i, "speed", e.target.value); }} placeholder="Speed" />
-            <input value={String(p.price)} onChange={function (e) { updatePlan(i, "price", e.target.value); }} placeholder="Price" inputMode="decimal" />
-            <input value={p.badge} onChange={function (e) { updatePlan(i, "badge", e.target.value); }} placeholder="Badge" />
-            <textarea value={p.details} onChange={function (e) { updatePlan(i, "details", e.target.value); }} placeholder="Details" />
-            <button className="sf-danger" onClick={function () { removePlan(i); }}>Remove plan</button>
-          </div>
-        );
-      })}
-      <button className="sf-admin-add" onClick={addPlan}>Add plan</button>
-
-      <h4>Add-ons</h4>
-      {data.addons.map(function (a, i) {
-        return (
-          <div className="sf-admin-item" key={a.id}>
-            <input value={a.name} onChange={function (e) { updateAddon(i, "name", e.target.value); }} placeholder="Add-on name" />
-            <input value={String(a.price)} onChange={function (e) { updateAddon(i, "price", e.target.value); }} placeholder="Price" inputMode="decimal" />
-            <textarea value={a.details} onChange={function (e) { updateAddon(i, "details", e.target.value); }} placeholder="Details" />
-            <button className="sf-danger" onClick={function () { removeAddon(i); }}>Remove add-on</button>
-          </div>
-        );
-      })}
-      <button className="sf-admin-add" onClick={addAddon}>Add add-on</button>
-
-      <button className="sf-reset" onClick={reset}>Reset defaults</button>
-    </div>
-  );
-}
-
-const css = `
-html, body {
-  margin: 0;
-  background: #f7f7f7;
-}
-
-* {
-  box-sizing: border-box;
-}
-
-.sf-page {
-  min-height: 100vh;
-  background:
-    radial-gradient(circle at top left, rgba(210, 0, 0, 0.10), transparent 28rem),
-    linear-gradient(180deg, #ffffff 0%, #f6f6f6 48%, #eeeeee 100%);
-  color: #1f1f1f;
-  font-family: Arial, Helvetica, sans-serif;
-  -webkit-text-size-adjust: 100%;
-}
-
-.sf-shell {
-  width: min(1120px, calc(100% - 24px));
-  margin: 0 auto;
-  padding: 18px 0 26px;
-}
-
-.sf-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 18px;
-  border-radius: 24px;
-  background: #ffffff;
-  border: 1px solid #e7e7e7;
-  box-shadow: 0 18px 45px rgba(0,0,0,.08);
-}
-
-.sf-kicker,
-.sf-red-label {
-  display: inline-flex;
-  align-items: center;
-  width: max-content;
-  max-width: 100%;
-  border-radius: 999px;
-  background: #d71920;
-  color: white;
-  padding: 7px 11px;
-  font-size: 11px;
-  line-height: 1;
-  font-weight: 900;
-  letter-spacing: .12em;
-  text-transform: uppercase;
-}
-
-.sf-header h1 {
-  margin: 9px 0 3px;
-  font-size: clamp(30px, 5vw, 54px);
-  line-height: .95;
-  letter-spacing: -0.06em;
-  color: #111;
-}
-
-.sf-header p {
-  margin: 0;
-  color: #626262;
-  font-weight: 700;
-}
-
-.sf-admin-pill {
-  appearance: none;
-  border: 1px solid #d71920;
-  color: #d71920;
-  background: white;
-  border-radius: 999px;
-  padding: 12px 15px;
-  font-weight: 900;
-  cursor: pointer;
-  white-space: nowrap;
-  font-size: 14px;
-}
-
-.sf-admin-box {
-  margin-top: 12px;
-  border-radius: 22px;
-  border: 1px solid #ffd5d7;
-  background: #fff5f5;
-  padding: 14px;
-}
-
-.sf-admin-login {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 8px;
-}
-
-input, textarea, select, button {
-  font: inherit;
-}
-
-.sf-admin-login input,
-.sf-admin-field input,
-.sf-admin-item input,
-.sf-admin-item textarea,
-.sf-bill-input-wrap input,
-.sf-mini-input input {
-  border: 1px solid #d8d8d8;
-  background: #fff;
-  color: #111;
-  border-radius: 14px;
-  padding: 12px 13px;
-  min-height: 46px;
-  outline: none;
-  font-size: 16px;
-}
-
-.sf-admin-login button,
-.sf-admin-top button,
-.sf-admin-add,
-.sf-reset {
-  border: 0;
-  border-radius: 14px;
-  background: #d71920;
-  color: white;
-  font-weight: 900;
-  padding: 12px 16px;
-  cursor: pointer;
-}
-
-.sf-admin-top {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.sf-admin-top h3,
-.sf-admin-box h4 {
-  margin: 8px 0 10px;
-}
-
-.sf-admin-field {
-  display: grid;
-  gap: 5px;
-  margin: 10px 0;
-  font-size: 12px;
-  font-weight: 900;
-  color: #555;
-  text-transform: uppercase;
-  letter-spacing: .08em;
-}
-
-.sf-admin-item {
-  display: grid;
-  gap: 8px;
-  border: 1px solid #e5e5e5;
-  background: white;
-  border-radius: 18px;
-  padding: 12px;
-  margin-bottom: 10px;
-}
-
-.sf-admin-item textarea {
-  min-height: 72px;
-  resize: vertical;
-}
-
-.sf-danger {
-  border: 0;
-  border-radius: 12px;
-  padding: 10px;
-  background: #3b0000;
-  color: white;
-  font-weight: 900;
-}
-
-.sf-admin-add {
-  width: 100%;
-  margin-bottom: 14px;
-}
-
-.sf-reset {
-  background: #333;
-  width: 100%;
-  margin-top: 8px;
-}
-
-.sf-steps {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 8px;
-  margin: 14px 0;
-}
-
-.sf-steps button {
-  border: 1px solid #e3e3e3;
-  background: white;
-  color: #4d4d4d;
-  border-radius: 16px;
-  padding: 12px 8px;
-  font-size: 13px;
-  font-weight: 900;
-  cursor: pointer;
-}
-
-.sf-steps button.active {
-  background: #d71920;
-  border-color: #d71920;
-  color: white;
-  box-shadow: 0 14px 28px rgba(215,25,32,.22);
-}
-
-.sf-card {
-  background: white;
-  border: 1px solid #e7e7e7;
-  border-radius: 30px;
-  padding: clamp(18px, 4vw, 34px);
-  box-shadow: 0 24px 70px rgba(0,0,0,.10);
-  overflow: hidden;
-}
-
-.sf-card h2 {
-  margin: 14px 0 8px;
-  font-size: clamp(34px, 6vw, 68px);
-  line-height: .95;
-  letter-spacing: -0.075em;
-  color: #111;
-}
-
-.sf-big-copy {
-  margin: 0;
-  font-size: clamp(18px, 2.4vw, 25px);
-  line-height: 1.28;
-  color: #4d4d4d;
-  font-weight: 700;
-}
-
-.sf-hero-grid {
-  display: grid;
-  grid-template-columns: 1.2fr .8fr;
-  gap: 22px;
-  align-items: stretch;
-}
-
-.sf-fiber-visual {
-  position: relative;
-  min-height: 280px;
-  border-radius: 28px;
-  overflow: hidden;
-  background:
-    linear-gradient(135deg, #d71920 0%, #a60000 52%, #2a0000 100%);
-  color: white;
-  display: grid;
-  place-items: center;
-}
-
-.sf-fiber-visual p {
-  position: relative;
-  z-index: 4;
-  margin-top: 130px;
-  font-size: 18px;
-  font-weight: 900;
-}
-
-.sf-light-beam {
-  position: absolute;
-  width: 84%;
-  height: 16px;
-  border-radius: 999px;
-  background: rgba(255,255,255,.92);
-  box-shadow: 0 0 30px white, 0 0 80px rgba(255,255,255,.7);
-  transform: rotate(-18deg);
-}
-
-.sf-glass-line {
-  position: absolute;
-  width: 82%;
-  height: 58px;
-  border-radius: 999px;
-  border: 2px solid rgba(255,255,255,.45);
-  transform: rotate(-18deg);
-}
-
-.sf-dot {
-  position: absolute;
-  width: 22px;
-  height: 22px;
-  border-radius: 999px;
-  background: white;
-  box-shadow: 0 0 35px white;
-}
-
-.sf-dot.d1 { left: 18%; top: 34%; }
-.sf-dot.d2 { left: 49%; top: 43%; }
-.sf-dot.d3 { right: 18%; top: 54%; }
-
-.sf-point-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
-  margin: 20px 0;
-}
-
-.sf-point {
-  border-radius: 22px;
-  background: #f5f5f5;
-  border: 1px solid #e7e7e7;
-  padding: 16px;
-  display: grid;
-  gap: 7px;
-}
-
-.sf-point strong {
-  color: #d71920;
-  font-size: 18px;
-}
-
-.sf-point span {
-  color: #555;
-  font-weight: 700;
-  line-height: 1.35;
-}
-
-.sf-primary {
-  appearance: none;
-  border: 0;
-  width: 100%;
-  min-height: 58px;
-  border-radius: 18px;
-  background: #d71920;
-  color: white;
-  font-size: 18px;
-  font-weight: 950;
-  cursor: pointer;
-  box-shadow: 0 18px 35px rgba(215,25,32,.24);
-}
-
-.sf-primary.small {
-  width: auto;
-  min-height: 48px;
-  padding: 0 18px;
-}
-
-.sf-bill-input-wrap {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  align-items: center;
-  gap: 8px;
-  margin: 24px 0 14px;
-  padding: 12px 16px;
-  border-radius: 24px;
-  border: 2px solid #d71920;
-  background: #fff7f7;
-}
-
-.sf-bill-input-wrap span {
-  font-size: clamp(35px, 7vw, 72px);
-  font-weight: 950;
-  color: #d71920;
-}
-
-.sf-bill-input-wrap input {
-  border: 0;
-  background: transparent;
-  font-size: clamp(45px, 9vw, 92px);
-  font-weight: 950;
-  letter-spacing: -.08em;
-  padding: 0;
-  min-height: 90px;
-}
-
-.sf-bill-input-wrap small {
-  color: #555;
-  font-weight: 900;
-}
-
-.sf-quick-bills {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 18px;
-}
-
-.sf-quick-bills button {
-  border: 1px solid #e3e3e3;
-  border-radius: 999px;
-  background: #fff;
-  padding: 10px 14px;
-  font-weight: 900;
-  color: #333;
-}
-
-.sf-plan-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 14px;
-  margin: 18px 0;
-}
-
-.sf-plan,
-.sf-addon {
-  text-align: left;
-  border: 2px solid #e7e7e7;
-  background: white;
-  color: #111;
-  border-radius: 24px;
-  padding: 18px;
-  cursor: pointer;
-  min-height: 220px;
-}
-
-.sf-plan.active,
-.sf-addon.active {
-  border-color: #d71920;
-  background: #fff5f5;
-  box-shadow: 0 18px 40px rgba(215,25,32,.14);
-}
-
-.sf-badge {
-  display: inline-flex;
-  border-radius: 999px;
-  background: #111;
-  color: white;
-  padding: 6px 9px;
-  font-size: 11px;
-  font-weight: 900;
-  text-transform: uppercase;
-  letter-spacing: .08em;
-}
-
-.sf-plan strong,
-.sf-addon strong {
-  display: block;
-  margin-top: 13px;
-  font-size: 24px;
-  letter-spacing: -.04em;
-}
-
-.sf-plan em {
-  display: block;
-  margin-top: 4px;
-  color: #d71920;
-  font-style: normal;
-  font-weight: 950;
-}
-
-.sf-plan b,
-.sf-addon b {
-  display: block;
-  margin-top: 12px;
-  font-size: 36px;
-  letter-spacing: -.06em;
-}
-
-.sf-plan small,
-.sf-addon small {
-  font-size: 14px;
-  color: #777;
-}
-
-.sf-plan p,
-.sf-addon span {
-  display: block;
-  margin-top: 10px;
-  color: #5d5d5d;
-  font-weight: 700;
-  line-height: 1.35;
-}
-
-.sf-addon-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 14px;
-  margin: 18px 0;
-}
-
-.sf-summary-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 14px;
-  margin: 18px 0;
-}
-
-.sf-price-card {
-  border-radius: 26px;
-  padding: 18px;
-  border: 1px solid #e7e7e7;
-  background: #f7f7f7;
-}
-
-.sf-price-card span {
-  display: block;
-  font-size: 12px;
-  font-weight: 950;
-  letter-spacing: .1em;
-  text-transform: uppercase;
-  color: #6b6b6b;
-}
-
-.sf-price-card strong {
-  display: block;
-  margin-top: 10px;
-  font-size: clamp(34px, 5vw, 58px);
-  letter-spacing: -.08em;
-}
-
-.sf-price-card small {
-  color: #686868;
-  font-weight: 900;
-}
-
-.sf-price-card.new {
-  background: #111;
-  color: white;
-}
-
-.sf-price-card.new span,
-.sf-price-card.new small {
-  color: rgba(255,255,255,.7);
-}
-
-.sf-price-card.save {
-  background: #d71920;
-  color: white;
-}
-
-.sf-price-card.higher {
-  background: #f5c542;
-  color: #111;
-}
-
-.sf-price-card.save span,
-.sf-price-card.save small {
-  color: rgba(255,255,255,.78);
-}
-
-.sf-mini-input {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  align-items: end;
-  gap: 2px;
-  margin-top: 10px;
-}
-
-.sf-mini-input b {
-  font-size: 35px;
-  color: #d71920;
-}
-
-.sf-mini-input input {
-  min-width: 0;
-  border: 0;
-  background: transparent;
-  font-size: clamp(34px, 5vw, 58px);
-  font-weight: 950;
-  letter-spacing: -.08em;
-  padding: 0;
-}
-
-.sf-savings-strip {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 14px;
-  margin: 14px 0;
-}
-
-.sf-savings-strip div {
-  border-radius: 26px;
-  background: #fff5f5;
-  border: 1px solid #ffd6d8;
-  padding: 20px;
-}
-
-.sf-savings-strip span,
-.sf-savings-strip small {
-  display: block;
-  color: #666;
-  font-weight: 900;
-}
-
-.sf-savings-strip strong {
-  display: block;
-  margin: 6px 0;
-  font-size: clamp(42px, 7vw, 82px);
-  color: #d71920;
-  letter-spacing: -.09em;
-}
-
-.sf-package,
-.sf-notes {
-  border-radius: 24px;
-  background: #f7f7f7;
-  border: 1px solid #e7e7e7;
-  padding: 16px;
-  margin-top: 14px;
-}
-
-.sf-package h3 {
-  margin: 0 0 8px;
-  font-size: 22px;
-}
-
-.sf-package p,
-.sf-notes p {
-  margin: 7px 0;
-  color: #4d4d4d;
-  font-weight: 700;
-}
-
-.sf-bottom-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 16px;
-}
-
-.sf-bottom-actions button {
-  border: 1px solid #d9d9d9;
-  background: white;
-  color: #333;
-  border-radius: 16px;
-  padding: 13px 16px;
-  font-weight: 900;
-}
-
-.sf-bottom-actions .sf-primary {
-  background: #d71920;
-  color: white;
-  border: 0;
-}
-
-.sf-footer {
-  display: flex;
-  justify-content: space-between;
-  gap: 14px;
-  color: #777;
-  font-size: 12px;
-  font-weight: 700;
-  padding: 14px 4px 0;
-}
-
-.sf-loading {
-  min-height: 100vh;
-  display: grid;
-  place-items: center;
-  color: #d71920;
-  font-size: 28px;
-  font-weight: 950;
-}
-
-@media (max-width: 820px) {
-  .sf-shell {
-    width: min(100% - 16px, 1120px);
-    padding-top: 8px;
-  }
-
-  .sf-header {
-    align-items: flex-start;
-    flex-direction: column;
-    border-radius: 20px;
-  }
-
-  .sf-admin-pill {
-    width: 100%;
-  }
-
-  .sf-steps {
-    grid-template-columns: repeat(5, minmax(118px, 1fr));
-    overflow-x: auto;
-    padding-bottom: 4px;
-  }
-
-  .sf-steps button {
-    white-space: nowrap;
-  }
-
-  .sf-hero-grid,
-  .sf-point-grid,
-  .sf-plan-grid,
-  .sf-addon-grid,
-  .sf-summary-grid,
-  .sf-savings-strip {
-    grid-template-columns: 1fr;
-  }
-
-  .sf-fiber-visual {
-    min-height: 210px;
-  }
-
-  .sf-plan,
-  .sf-addon {
-    min-height: 0;
-  }
-
-  .sf-footer {
-    flex-direction: column;
-  }
-}
-`;
