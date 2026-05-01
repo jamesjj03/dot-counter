@@ -51,7 +51,7 @@ function safeJsonClone(value) {
 const DEFAULT_SETTINGS = {
   title: "Fiber Internet",
   eyebrow: "Quote helper",
-  subline: "Built for faster, steadier, cleaner home internet.",
+  subline: "Fast. Reliable. Built for modern homes.",
   primaryPlanId: "gig",
   fiberPoints: [
     {
@@ -83,6 +83,26 @@ const DEFAULT_SETTINGS = {
         "A direct fiber-based connection with more bandwidth, stronger uploads, and better performance for modern homes.",
     },
   ],
+  visualExamples: [
+    { label: "4K streaming", oldValue: "buffering", newValue: "smooth", icon: "TV" },
+    { label: "Video calls", oldValue: "freezes", newValue: "clear", icon: "CALL" },
+    { label: "Gaming", oldValue: "lag spikes", newValue: "low lag", icon: "GAME" },
+    { label: "Uploads", oldValue: "slow", newValue: "fast", icon: "UP" },
+    { label: "Busy house", oldValue: "crowded", newValue: "room", icon: "HOME" },
+    { label: "Smart devices", oldValue: "drop-offs", newValue: "steady", icon: "WIFI" },
+  ],
+  billingSchedule: {
+    enabled: true,
+    title: "First few months",
+    note: "Edit these once Sam confirms the exact promo/billing timing.",
+    months: [
+      { label: "Month 1", amount: 0, note: "Promo month" },
+      { label: "Month 2", amount: 0, note: "Promo month" },
+      { label: "Month 3", amount: "AUTO", note: "First regular bill estimate" },
+      { label: "Month 4", amount: "AUTO", note: "Regular monthly estimate" },
+      { label: "Month 5", amount: "AUTO", note: "Regular monthly estimate" },
+    ],
+  },
   plans: [
     {
       id: "fivehundred",
@@ -166,24 +186,13 @@ const DEFAULT_SETTINGS = {
       category: "Wi-Fi",
     },
   ],
-  phone: {
+  verizonDiscount: {
     enabled: true,
-    title: "Mobile phone plans",
-    lineLabel: "Phone lines",
-    basePricePerLine: 29.99,
-    verizonDiscountPerLine: 10,
-    verizonDiscountLabel: "Verizon customer savings",
+    title: "Verizon customer discount",
+    amount: 15,
     description:
-      "Add mobile lines to the quote and show the extra monthly savings if the customer qualifies for the Verizon-linked discount.",
-    plans: [
-      {
-        id: "mobile-basic",
-        name: "Mobile Line",
-        price: 29.99,
-        description:
-          "Estimated monthly phone line option. Update this once Sam or Zach confirms the exact mobile pricing.",
-      },
-    ],
+      "If they already have Verizon phones, they can save this amount on the monthly internet bill.",
+    label: "Already has Verizon phones",
   },
   disclaimer:
     "Quote helper only. Address availability, taxes, fees, installation, autopay, promotions, mobile discounts, and final order details must be confirmed.",
@@ -247,13 +256,9 @@ function mergeSettings(incoming) {
   const merged = {
     ...DEFAULT_SETTINGS,
     ...(incoming || {}),
-    phone: {
-      ...DEFAULT_SETTINGS.phone,
-      ...((incoming && incoming.phone) || {}),
-      plans:
-        incoming && incoming.phone && Array.isArray(incoming.phone.plans)
-          ? incoming.phone.plans
-          : DEFAULT_SETTINGS.phone.plans,
+    verizonDiscount: {
+      ...DEFAULT_SETTINGS.verizonDiscount,
+      ...((incoming && incoming.verizonDiscount) || {}),
     },
     plans:
       incoming && Array.isArray(incoming.plans)
@@ -271,6 +276,20 @@ function mergeSettings(incoming) {
       incoming && Array.isArray(incoming.contrastCards)
         ? incoming.contrastCards
         : DEFAULT_SETTINGS.contrastCards,
+    visualExamples:
+      incoming && Array.isArray(incoming.visualExamples)
+        ? incoming.visualExamples
+        : DEFAULT_SETTINGS.visualExamples,
+    billingSchedule: {
+      ...DEFAULT_SETTINGS.billingSchedule,
+      ...((incoming && incoming.billingSchedule) || {}),
+      months:
+        incoming &&
+        incoming.billingSchedule &&
+        Array.isArray(incoming.billingSchedule.months)
+          ? incoming.billingSchedule.months
+          : DEFAULT_SETTINGS.billingSchedule.months,
+    },
   };
 
   if (!merged.primaryPlanId && merged.plans[0]) {
@@ -292,7 +311,6 @@ export default function SalesPage() {
   const [currentBill, setCurrentBill] = useState("");
   const [selectedPlanId, setSelectedPlanId] = useState(DEFAULT_SETTINGS.primaryPlanId);
   const [selectedAddons, setSelectedAddons] = useState([]);
-  const [phoneLines, setPhoneLines] = useState(0);
   const [isVerizonCustomer, setIsVerizonCustomer] = useState(false);
   const saveTimerRef = useRef(null);
 
@@ -375,20 +393,13 @@ export default function SalesPage() {
       .reduce((sum, addon) => sum + cleanNumber(addon.price), 0);
   }, [settings.addons, selectedAddons]);
 
-  const phonePricePerLine =
-    settings.phone.plans && settings.phone.plans[0]
-      ? cleanNumber(settings.phone.plans[0].price)
-      : cleanNumber(settings.phone.basePricePerLine);
-
-  const phoneSubtotal = phoneLines * phonePricePerLine;
   const verizonSavings =
-    isVerizonCustomer && phoneLines > 0
-      ? phoneLines * cleanNumber(settings.phone.verizonDiscountPerLine)
+    isVerizonCustomer && settings.verizonDiscount.enabled
+      ? cleanNumber(settings.verizonDiscount.amount)
       : 0;
 
-  const phoneFinal = Math.max(0, phoneSubtotal - verizonSavings);
   const ourMonthly =
-    cleanNumber(selectedPlan && selectedPlan.price) + addonTotal + phoneFinal;
+    cleanNumber(selectedPlan && selectedPlan.price) + addonTotal - verizonSavings;
   const currentMonthly = parseMoneyInput(currentBill);
   const monthlySavings = currentMonthly > 0 ? currentMonthly - ourMonthly : 0;
   const annualSavings = monthlySavings * 12;
@@ -410,7 +421,6 @@ export default function SalesPage() {
     setSettings(fresh);
     setSelectedPlanId(fresh.primaryPlanId);
     setSelectedAddons([]);
-    setPhoneLines(0);
     setIsVerizonCustomer(false);
   };
 
@@ -520,13 +530,9 @@ export default function SalesPage() {
               settings={settings}
               selectedAddons={selectedAddons}
               setSelectedAddons={setSelectedAddons}
-              phoneLines={phoneLines}
-              setPhoneLines={setPhoneLines}
               isVerizonCustomer={isVerizonCustomer}
               setIsVerizonCustomer={setIsVerizonCustomer}
-              phonePricePerLine={phonePricePerLine}
               verizonSavings={verizonSavings}
-              phoneFinal={phoneFinal}
               setStep={setStep}
             />
           )}
@@ -537,12 +543,8 @@ export default function SalesPage() {
               currentMonthly={currentMonthly}
               selectedPlan={selectedPlan}
               addonTotal={addonTotal}
-              phoneLines={phoneLines}
-              phonePricePerLine={phonePricePerLine}
-              phoneSubtotal={phoneSubtotal}
               isVerizonCustomer={isVerizonCustomer}
               verizonSavings={verizonSavings}
-              phoneFinal={phoneFinal}
               ourMonthly={ourMonthly}
               monthlySavings={monthlySavings}
               annualSavings={annualSavings}
@@ -571,34 +573,42 @@ function FlowButton({ step, active, setStep, label }) {
 
 function FiberStep({ settings, setStep }) {
   return (
-    <section className="hero-grid">
-      <div className="hero-card">
-        <div className="label-red">Why fiber feels different</div>
-        <h1>Built for the way homes actually use internet now.</h1>
-        <p>
-          More devices. More streaming. More video calls. More gaming. More smart
-          home stuff running all day. Fiber gives the house room to breathe.
-        </p>
+    <section className="fiber-visual-stage">
+      <div className="fiber-hero-simple">
+        <div>
+          <div className="label-red">Fiber vs cable</div>
+          <h1>They should feel the difference in five seconds.</h1>
+          <p>
+            No speech. No wall of text. Just show what happens when the house is
+            actually online.
+          </p>
+        </div>
 
-        <div className="signal-visual">
-          <div className="old-side">
-            <span>coax/cable</span>
-            <div className="traffic-lines">
-              <i></i>
-              <i></i>
-              <i></i>
+        <div className="big-contrast-visual">
+          <div className="connection-side cable-side">
+            <div className="connection-title">COAX</div>
+            <div className="house-row crowded">
+              <span>TV</span><span>Game</span><span>Calls</span><span>Phones</span><span>Work</span>
             </div>
-            <p>Shared capacity. Slower uploads. More bottlenecks.</p>
+            <div className="pipe small-pipe">
+              <i></i><i></i><i></i>
+            </div>
+            <strong>shared line</strong>
+            <small>slower uploads • neighborhood slowdown • bottlenecks</small>
           </div>
-          <div className="vs-pill">VS</div>
-          <div className="new-side">
-            <span>fiber</span>
-            <div className="fiber-beam">
-              <i></i>
-              <i></i>
-              <i></i>
+
+          <div className="vs-core">VS</div>
+
+          <div className="connection-side fiber-side">
+            <div className="connection-title">FIBER</div>
+            <div className="house-row clear">
+              <span>TV</span><span>Game</span><span>Calls</span><span>Phones</span><span>Work</span>
             </div>
-            <p>More speed. Better reliability. Strong upload power.</p>
+            <div className="pipe fiber-pipe">
+              <i></i><i></i><i></i>
+            </div>
+            <strong>light-speed line</strong>
+            <small>fast downloads • fast uploads • more room for the house</small>
           </div>
         </div>
 
@@ -607,30 +617,31 @@ function FiberStep({ settings, setStep }) {
         </button>
       </div>
 
-      <div className="impact-stack">
-        {settings.fiberPoints.map((point, index) => (
-          <div className="impact-card" key={index}>
-            <div className="impact-number">0{index + 1}</div>
-            <h3>{point.title}</h3>
-            <strong>{point.metric}</strong>
-            <p>{point.body}</p>
+      <div className="example-grid">
+        {settings.visualExamples.map((item, index) => (
+          <div className="example-card" key={index}>
+            <div className="example-icon">{item.icon}</div>
+            <h3>{item.label}</h3>
+            <div className="mini-compare">
+              <span className="old-chip">{item.oldValue}</span>
+              <span className="arrow-chip">→</span>
+              <span className="new-chip">{item.newValue}</span>
+            </div>
           </div>
         ))}
       </div>
 
-      <div className="contrast-card">
-        {settings.contrastCards.map((card, index) => (
-          <div className="contrast-row" key={index}>
-            <div className="contrast-bad">
-              <h3>{card.oldTitle}</h3>
-              <p>{card.oldBody}</p>
-            </div>
-            <div className="contrast-good">
-              <h3>{card.newTitle}</h3>
-              <p>{card.newBody}</p>
-            </div>
-          </div>
-        ))}
+      <div className="symmetry-card">
+        <div>
+          <span>download</span>
+          <strong>↓ fast</strong>
+        </div>
+        <div className="equal-mark">=</div>
+        <div>
+          <span>upload</span>
+          <strong>↑ fast</strong>
+        </div>
+        <p>That is the symmetrical part. It matters for calls, gaming, uploads, work files, cameras, and cloud stuff.</p>
       </div>
     </section>
   );
@@ -727,13 +738,9 @@ function OptionsStep({
   settings,
   selectedAddons,
   setSelectedAddons,
-  phoneLines,
-  setPhoneLines,
   isVerizonCustomer,
   setIsVerizonCustomer,
-  phonePricePerLine,
   verizonSavings,
-  phoneFinal,
   setStep,
 }) {
   const toggleAddon = (id) => {
@@ -773,50 +780,21 @@ function OptionsStep({
         })}
       </div>
 
-      {settings.phone.enabled && (
-        <div className="phone-module">
+      {settings.verizonDiscount.enabled && (
+        <div className="verizon-discount-module">
           <div>
-            <div className="label-red">Mobile</div>
-            <h2>{settings.phone.title}</h2>
-            <p>{settings.phone.description}</p>
+            <div className="label-red">Discount</div>
+            <h2>{settings.verizonDiscount.title}</h2>
+            <p>{settings.verizonDiscount.description}</p>
           </div>
 
-          <div className="phone-controls">
-            <div className="line-stepper">
-              <button onClick={() => setPhoneLines(Math.max(0, phoneLines - 1))}>
-                −
-              </button>
-              <div>
-                <strong>{phoneLines}</strong>
-                <span>{settings.phone.lineLabel}</span>
-              </div>
-              <button onClick={() => setPhoneLines(phoneLines + 1)}>+</button>
-            </div>
-
-            <button
-              className={isVerizonCustomer ? "verizon-toggle active" : "verizon-toggle"}
-              onClick={() => setIsVerizonCustomer(!isVerizonCustomer)}
-            >
-              Verizon customer discount
-            </button>
-          </div>
-
-          <div className="phone-math">
-            <div>
-              <span>Phone estimate</span>
-              <strong>
-                {phoneLines} × {money(phonePricePerLine)}
-              </strong>
-            </div>
-            <div>
-              <span>{settings.phone.verizonDiscountLabel}</span>
-              <strong>-{money(verizonSavings)}/mo</strong>
-            </div>
-            <div className="total-row">
-              <span>Phone monthly</span>
-              <strong>{money(phoneFinal)}/mo</strong>
-            </div>
-          </div>
+          <button
+            className={isVerizonCustomer ? "verizon-toggle active big" : "verizon-toggle big"}
+            onClick={() => setIsVerizonCustomer(!isVerizonCustomer)}
+          >
+            {settings.verizonDiscount.label}
+            <strong>{isVerizonCustomer ? "-" + money(verizonSavings) + "/mo" : "Tap to apply"}</strong>
+          </button>
         </div>
       )}
 
@@ -832,12 +810,8 @@ function SavingsStep({
   currentMonthly,
   selectedPlan,
   addonTotal,
-  phoneLines,
-  phonePricePerLine,
-  phoneSubtotal,
   isVerizonCustomer,
   verizonSavings,
-  phoneFinal,
   ourMonthly,
   monthlySavings,
   annualSavings,
@@ -845,13 +819,39 @@ function SavingsStep({
   setStep,
 }) {
   const saving = monthlySavings > 0;
+  const schedule = settings.billingSchedule || {};
+  const months = Array.isArray(schedule.months) ? schedule.months : [];
+
+  const resolveBillingAmount = (amount) => {
+    if (String(amount).toUpperCase() === "AUTO") return ourMonthly;
+    return cleanNumber(amount);
+  };
+
+  const firstMonthsTotal = months.reduce((sum, month) => sum + resolveBillingAmount(month.amount), 0);
+
   return (
     <section className="savings-stage">
       <div className="savings-main">
         <div className="label-red">Savings</div>
-        <h1>{saving ? "That is the money difference." : "Here is the clean comparison."}</h1>
+        <h1>{saving ? "The real number is the year." : "Here is the clean comparison."}</h1>
 
-        <div className="comparison-bars">
+        <div className="big-savings-grid">
+          <div className="year-save">
+            <span>1 year savings</span>
+            <strong>{money(annualSavings)}</strong>
+          </div>
+          <div className="three-year-save">
+            <span>3 year savings</span>
+            <strong>{money(threeYearSavings)}</strong>
+          </div>
+        </div>
+
+        <div className="monthly-small">
+          <span>Monthly difference</span>
+          <strong>{money(monthlySavings)}</strong>
+        </div>
+
+        <div className="comparison-bars compact">
           <div className="bar old">
             <span>Current bill</span>
             <strong>{money(currentMonthly)}</strong>
@@ -862,21 +862,29 @@ function SavingsStep({
           </div>
         </div>
 
-        <div className={saving ? "mega-save positive" : "mega-save"}>
-          <span>Monthly difference</span>
-          <strong>{money(monthlySavings)}</strong>
-        </div>
-
-        <div className="savings-grid">
-          <div>
-            <span>1 year</span>
-            <strong>{money(annualSavings)}</strong>
+        {schedule.enabled && (
+          <div className="billing-card">
+            <div className="billing-head">
+              <div>
+                <span className="label-red">{schedule.title || "First few months"}</span>
+                <p>{schedule.note}</p>
+              </div>
+              <strong>{money(firstMonthsTotal)}</strong>
+            </div>
+            <div className="billing-months">
+              {months.map((month, index) => {
+                const amount = resolveBillingAmount(month.amount);
+                return (
+                  <div className={amount === 0 ? "billing-month free" : "billing-month"} key={index}>
+                    <span>{month.label}</span>
+                    <strong>{amount === 0 ? "FREE" : money(amount)}</strong>
+                    <small>{month.note}</small>
+                  </div>
+                );
+              })}
+            </div>
           </div>
-          <div>
-            <span>3 years</span>
-            <strong>{money(threeYearSavings)}</strong>
-          </div>
-        </div>
+        )}
 
         <button className="secondary-action" onClick={() => setStep("bill")}>
           Change bill
@@ -888,18 +896,9 @@ function SavingsStep({
         <Line label={selectedPlan ? selectedPlan.name : "Internet"} value={money(selectedPlan ? selectedPlan.price : 0)} />
         <Line label="Selected add-ons" value={money(addonTotal)} />
         <Line
-          label={
-            phoneLines > 0
-              ? "Mobile lines (" + phoneLines + " × " + money(phonePricePerLine) + ")"
-              : "Mobile lines"
-          }
-          value={money(phoneSubtotal)}
-        />
-        <Line
-          label={isVerizonCustomer ? settings.phone.verizonDiscountLabel : "Mobile discount"}
+          label={isVerizonCustomer ? settings.verizonDiscount.title : "Verizon discount"}
           value={"-" + money(verizonSavings)}
         />
-        <Line label="Mobile final" value={money(phoneFinal)} />
         <div className="quote-total">
           <span>Total monthly quote</span>
           <strong>{money(ourMonthly)}</strong>
@@ -1120,6 +1119,101 @@ function AdminEditor({ settings, setSettings, resetDefaults, saveStatus, error }
         ))}
       </AdminSection>
 
+      <AdminSection title="Visual examples">
+        {settings.visualExamples.map((item, index) => (
+          <div className="admin-card" key={"visual-" + index}>
+            <div className="admin-row">
+              <Field
+                label="Icon text"
+                value={item.icon}
+                onChange={(v) => {
+                  const visualExamples = settings.visualExamples.map((x, i) => i === index ? { ...x, icon: v } : x);
+                  setSettings({ ...settings, visualExamples });
+                }}
+              />
+              <Field
+                label="Example"
+                value={item.label}
+                onChange={(v) => {
+                  const visualExamples = settings.visualExamples.map((x, i) => i === index ? { ...x, label: v } : x);
+                  setSettings({ ...settings, visualExamples });
+                }}
+              />
+              <Field
+                label="Fiber result"
+                value={item.newValue}
+                onChange={(v) => {
+                  const visualExamples = settings.visualExamples.map((x, i) => i === index ? { ...x, newValue: v } : x);
+                  setSettings({ ...settings, visualExamples });
+                }}
+              />
+            </div>
+            <Field
+              label="Old result"
+              value={item.oldValue}
+              onChange={(v) => {
+                const visualExamples = settings.visualExamples.map((x, i) => i === index ? { ...x, oldValue: v } : x);
+                setSettings({ ...settings, visualExamples });
+              }}
+            />
+          </div>
+        ))}
+      </AdminSection>
+
+      <AdminSection title="First few months billing">
+        <div className="admin-card">
+          <label className="check-row">
+            <input
+              type="checkbox"
+              checked={!!settings.billingSchedule.enabled}
+              onChange={(e) => setSettings({ ...settings, billingSchedule: { ...settings.billingSchedule, enabled: e.target.checked } })}
+            />
+            Show billing breakdown
+          </label>
+          <Field
+            label="Billing title"
+            value={settings.billingSchedule.title}
+            onChange={(v) => setSettings({ ...settings, billingSchedule: { ...settings.billingSchedule, title: v } })}
+          />
+          <TextField
+            label="Billing note"
+            value={settings.billingSchedule.note}
+            onChange={(v) => setSettings({ ...settings, billingSchedule: { ...settings.billingSchedule, note: v } })}
+          />
+        </div>
+        {settings.billingSchedule.months.map((month, index) => (
+          <div className="admin-card" key={"billing-" + index}>
+            <div className="admin-row">
+              <Field
+                label="Month label"
+                value={month.label}
+                onChange={(v) => {
+                  const months = settings.billingSchedule.months.map((x, i) => i === index ? { ...x, label: v } : x);
+                  setSettings({ ...settings, billingSchedule: { ...settings.billingSchedule, months } });
+                }}
+              />
+              <Field
+                label="Amount"
+                value={String(month.amount)}
+                onChange={(v) => {
+                  const nextAmount = v.trim().toUpperCase() === "AUTO" ? "AUTO" : parseMoneyInput(v);
+                  const months = settings.billingSchedule.months.map((x, i) => i === index ? { ...x, amount: nextAmount } : x);
+                  setSettings({ ...settings, billingSchedule: { ...settings.billingSchedule, months } });
+                }}
+              />
+              <Field
+                label="Note"
+                value={month.note}
+                onChange={(v) => {
+                  const months = settings.billingSchedule.months.map((x, i) => i === index ? { ...x, note: v } : x);
+                  setSettings({ ...settings, billingSchedule: { ...settings.billingSchedule, months } });
+                }}
+              />
+            </div>
+          </div>
+        ))}
+      </AdminSection>
+
       <AdminSection title="Plans">
         {settings.plans.map((plan) => (
           <div className={plan.featured ? "admin-card primary-plan-admin" : "admin-card"} key={plan.id}>
@@ -1200,62 +1294,37 @@ function AdminEditor({ settings, setSettings, resetDefaults, saveStatus, error }
         </button>
       </AdminSection>
 
-      <AdminSection title="Phone plans / Verizon savings">
+      <AdminSection title="Verizon discount">
         <div className="admin-card">
           <label className="check-row">
             <input
               type="checkbox"
-              checked={!!settings.phone.enabled}
-              onChange={(e) => updatePhone({ enabled: e.target.checked })}
+              checked={!!settings.verizonDiscount.enabled}
+              onChange={(e) => setSettings({ ...settings, verizonDiscount: { ...settings.verizonDiscount, enabled: e.target.checked } })}
             />
-            Enable phone module
+            Show Verizon discount module
           </label>
           <Field
-            label="Phone section title"
-            value={settings.phone.title}
-            onChange={(v) => updatePhone({ title: v })}
-          />
-          <TextField
-            label="Phone description"
-            value={settings.phone.description}
-            onChange={(v) => updatePhone({ description: v })}
+            label="Discount title"
+            value={settings.verizonDiscount.title}
+            onChange={(v) => setSettings({ ...settings, verizonDiscount: { ...settings.verizonDiscount, title: v } })}
           />
           <Field
-            label="Line label"
-            value={settings.phone.lineLabel}
-            onChange={(v) => updatePhone({ lineLabel: v })}
+            label="Toggle label"
+            value={settings.verizonDiscount.label}
+            onChange={(v) => setSettings({ ...settings, verizonDiscount: { ...settings.verizonDiscount, label: v } })}
           />
           <MoneyField
-            label="Verizon discount per line"
-            value={settings.phone.verizonDiscountPerLine}
-            onChange={(v) => updatePhone({ verizonDiscountPerLine: v })}
+            label="Monthly discount amount"
+            value={settings.verizonDiscount.amount}
+            onChange={(v) => setSettings({ ...settings, verizonDiscount: { ...settings.verizonDiscount, amount: v } })}
           />
-          <Field
-            label="Discount label"
-            value={settings.phone.verizonDiscountLabel}
-            onChange={(v) => updatePhone({ verizonDiscountLabel: v })}
+          <TextField
+            label="Description"
+            value={settings.verizonDiscount.description}
+            onChange={(v) => setSettings({ ...settings, verizonDiscount: { ...settings.verizonDiscount, description: v } })}
           />
         </div>
-
-        {settings.phone.plans.map((plan, index) => (
-          <div className="admin-card" key={plan.id || index}>
-            <Field
-              label="Phone plan name"
-              value={plan.name}
-              onChange={(v) => updatePhonePlan(index, { name: v })}
-            />
-            <MoneyField
-              label="Phone price per line"
-              value={plan.price}
-              onChange={(v) => updatePhonePlan(index, { price: v })}
-            />
-            <TextField
-              label="Phone plan details"
-              value={plan.description}
-              onChange={(v) => updatePhonePlan(index, { description: v })}
-            />
-          </div>
-        ))}
       </AdminSection>
 
       <AdminSection title="Legal/footer">
@@ -1371,8 +1440,10 @@ function GlobalStyles() {
       }
 
       .logo-text {
-        font-size: clamp(2.4rem, 7vw, 5.7rem);
-        text-shadow: 0 5px 0 rgba(215, 25, 32, 0.09);
+        font-size: clamp(1.9rem, 5vw, 3.6rem);
+        letter-spacing: -0.055em;
+        text-transform: none;
+        text-shadow: 0 3px 0 rgba(215, 25, 32, 0.07);
       }
 
       .brand-mark {
@@ -1517,7 +1588,7 @@ function GlobalStyles() {
       .contrast-card,
       .plan-card,
       .option-card,
-      .phone-module,
+      .verizon-discount-module,
       .savings-main,
       .quote-breakdown,
       .admin-panel,
@@ -1894,110 +1965,55 @@ function GlobalStyles() {
         margin: 6px 0;
       }
 
-      .phone-module {
+      .verizon-discount-module {
         margin-top: 18px;
         padding: 24px;
         display: grid;
-        grid-template-columns: 1fr 1.1fr 1fr;
+        grid-template-columns: 1fr auto;
         gap: 18px;
         align-items: center;
       }
 
-      .phone-module h2 {
+      .verizon-discount-module h2 {
         margin: 6px 0;
         font-size: 2rem;
         letter-spacing: -0.06em;
       }
 
-      .phone-module p {
+      .verizon-discount-module p {
         color: #555;
         font-weight: 700;
         line-height: 1.45;
-      }
-
-      .phone-controls {
-        display: grid;
-        gap: 12px;
-      }
-
-      .line-stepper {
-        display: grid;
-        grid-template-columns: auto 1fr auto;
-        gap: 10px;
-        align-items: center;
-        background: #f2f2f2;
-        border-radius: 22px;
-        padding: 10px;
-      }
-
-      .line-stepper button {
-        border: 0;
-        border-radius: 16px;
-        width: 54px;
-        height: 54px;
-        background: #171717;
-        color: white;
-        font-size: 2rem;
-        font-weight: 900;
-      }
-
-      .line-stepper div {
-        text-align: center;
-      }
-
-      .line-stepper strong {
-        display: block;
-        font-size: 2.3rem;
-        line-height: 1;
-      }
-
-      .line-stepper span {
-        color: #555;
-        font-weight: 900;
+        margin: 0;
       }
 
       .verizon-toggle {
         border: 2px solid #ddd;
-        border-radius: 18px;
+        border-radius: 22px;
         background: white;
-        padding: 14px;
+        padding: 16px 18px;
         font-weight: 1000;
+      }
+
+      .verizon-toggle.big {
+        min-width: 230px;
+        display: grid;
+        gap: 5px;
+        text-align: center;
+        font-size: 1rem;
+      }
+
+      .verizon-toggle.big strong {
+        display: block;
+        font-size: 1.75rem;
+        letter-spacing: -0.055em;
       }
 
       .verizon-toggle.active {
         background: #d71920;
         color: white;
         border-color: #d71920;
-      }
-
-      .phone-math {
-        background: #171717;
-        color: white;
-        border-radius: 22px;
-        padding: 16px;
-        display: grid;
-        gap: 11px;
-      }
-
-      .phone-math div {
-        display: flex;
-        justify-content: space-between;
-        gap: 12px;
-      }
-
-      .phone-math span {
-        color: rgba(255, 255, 255, 0.67);
-        font-weight: 800;
-      }
-
-      .phone-math strong {
-        font-weight: 1000;
-      }
-
-      .phone-math .total-row {
-        border-top: 1px solid rgba(255, 255, 255, 0.15);
-        padding-top: 10px;
-        color: #fff;
+        box-shadow: 0 18px 40px rgba(215, 25, 32, 0.22);
       }
 
       .savings-stage {
@@ -2278,6 +2294,396 @@ function GlobalStyles() {
         height: 20px;
       }
 
+
+      .fiber-visual-stage {
+        max-width: 1260px;
+        margin: 0 auto;
+        display: grid;
+        grid-template-columns: 1.1fr 0.9fr;
+        gap: 18px;
+      }
+
+      .fiber-hero-simple,
+      .symmetry-card,
+      .example-card {
+        background: rgba(255, 255, 255, 0.96);
+        border: 1px solid rgba(0, 0, 0, 0.07);
+        border-radius: 30px;
+        box-shadow: 0 18px 55px rgba(0, 0, 0, 0.1);
+      }
+
+      .fiber-hero-simple {
+        padding: clamp(22px, 4vw, 38px);
+      }
+
+      .fiber-hero-simple h1 {
+        margin: 7px 0 10px;
+        font-size: clamp(2rem, 4.3vw, 4rem);
+        letter-spacing: -0.07em;
+        line-height: 0.92;
+      }
+
+      .fiber-hero-simple p {
+        margin: 0;
+        color: #555;
+        font-size: 1.02rem;
+        line-height: 1.45;
+        font-weight: 750;
+      }
+
+      .big-contrast-visual {
+        display: grid;
+        grid-template-columns: 1fr auto 1fr;
+        gap: 12px;
+        align-items: stretch;
+        margin: 22px 0;
+      }
+
+      .connection-side {
+        min-height: 300px;
+        border-radius: 28px;
+        padding: 18px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        overflow: hidden;
+      }
+
+      .cable-side {
+        background: linear-gradient(135deg, #eeeeee, #dadada);
+        color: #454545;
+      }
+
+      .fiber-side {
+        background: radial-gradient(circle at 25% 15%, #ffeded, transparent 35%), linear-gradient(135deg, #d71920, #7b0000);
+        color: #fff;
+      }
+
+      .connection-title {
+        font-size: 1.35rem;
+        font-weight: 1000;
+        letter-spacing: -0.04em;
+      }
+
+      .house-row {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 7px;
+        margin: 12px 0;
+      }
+
+      .house-row span {
+        border-radius: 999px;
+        padding: 9px 8px;
+        text-align: center;
+        font-size: 0.78rem;
+        font-weight: 1000;
+      }
+
+      .crowded span {
+        background: rgba(0, 0, 0, 0.08);
+        color: #666;
+      }
+
+      .clear span {
+        background: rgba(255, 255, 255, 0.2);
+        color: white;
+      }
+
+      .pipe {
+        display: grid;
+        gap: 8px;
+      }
+
+      .pipe i {
+        display: block;
+        height: 15px;
+        border-radius: 999px;
+      }
+
+      .small-pipe i {
+        background: #8f8f8f;
+      }
+
+      .small-pipe i:nth-child(1) {
+        width: 42%;
+      }
+
+      .small-pipe i:nth-child(2) {
+        width: 64%;
+        opacity: 0.62;
+      }
+
+      .small-pipe i:nth-child(3) {
+        width: 29%;
+        opacity: 0.45;
+      }
+
+      .fiber-pipe i {
+        width: 100%;
+        background: white;
+        box-shadow: 0 0 24px rgba(255, 255, 255, 0.8);
+      }
+
+      .fiber-pipe i:nth-child(2) {
+        background: #ffd6d6;
+      }
+
+      .connection-side strong {
+        display: block;
+        font-size: 1.15rem;
+        letter-spacing: -0.04em;
+      }
+
+      .connection-side small {
+        display: block;
+        font-weight: 800;
+        opacity: 0.78;
+        line-height: 1.35;
+      }
+
+      .vs-core {
+        align-self: center;
+        border-radius: 999px;
+        background: #171717;
+        color: #fff;
+        font-size: 0.9rem;
+        font-weight: 1000;
+        padding: 13px 10px;
+      }
+
+      .example-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 14px;
+      }
+
+      .example-card {
+        padding: 18px;
+      }
+
+      .example-icon {
+        display: inline-grid;
+        place-items: center;
+        min-width: 54px;
+        height: 42px;
+        border-radius: 16px;
+        background: #fff0f0;
+        color: #d71920;
+        font-size: 0.82rem;
+        font-weight: 1000;
+        padding: 0 10px;
+      }
+
+      .example-card h3 {
+        margin: 13px 0;
+        font-size: 1.25rem;
+        letter-spacing: -0.045em;
+      }
+
+      .mini-compare {
+        display: grid;
+        grid-template-columns: 1fr auto 1fr;
+        gap: 6px;
+        align-items: center;
+      }
+
+      .old-chip,
+      .new-chip,
+      .arrow-chip {
+        border-radius: 999px;
+        padding: 9px 8px;
+        text-align: center;
+        font-size: 0.78rem;
+        font-weight: 1000;
+      }
+
+      .old-chip {
+        background: #ededed;
+        color: #777;
+      }
+
+      .new-chip {
+        background: #d71920;
+        color: white;
+      }
+
+      .arrow-chip {
+        color: #d71920;
+      }
+
+      .symmetry-card {
+        grid-column: 1 / -1;
+        padding: 22px;
+        display: grid;
+        grid-template-columns: 1fr auto 1fr 1.4fr;
+        gap: 16px;
+        align-items: center;
+      }
+
+      .symmetry-card div:not(.equal-mark) {
+        background: #fff0f0;
+        border-radius: 22px;
+        padding: 18px;
+      }
+
+      .symmetry-card span {
+        display: block;
+        color: #d71920;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        font-size: 0.75rem;
+        font-weight: 1000;
+      }
+
+      .symmetry-card strong {
+        display: block;
+        font-size: 2.2rem;
+        letter-spacing: -0.07em;
+      }
+
+      .equal-mark {
+        color: #d71920;
+        font-size: 2.5rem;
+        font-weight: 1000;
+      }
+
+      .symmetry-card p {
+        color: #555;
+        font-weight: 800;
+        line-height: 1.35;
+        margin: 0;
+      }
+
+      .big-savings-grid {
+        display: grid;
+        grid-template-columns: 1fr 1.12fr;
+        gap: 14px;
+        margin: 20px 0 14px;
+      }
+
+      .year-save,
+      .three-year-save {
+        border-radius: 28px;
+        padding: 24px;
+        color: white;
+        background: linear-gradient(135deg, #d71920, #7b0000);
+        box-shadow: 0 18px 45px rgba(215, 25, 32, 0.22);
+      }
+
+      .three-year-save {
+        transform: scale(1.02);
+      }
+
+      .year-save span,
+      .three-year-save span {
+        display: block;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        font-size: 0.82rem;
+        font-weight: 1000;
+        opacity: 0.82;
+      }
+
+      .year-save strong,
+      .three-year-save strong {
+        display: block;
+        font-size: clamp(3rem, 7vw, 6.2rem);
+        letter-spacing: -0.1em;
+        line-height: 0.95;
+      }
+
+      .three-year-save strong {
+        font-size: clamp(3.8rem, 8vw, 7.5rem);
+      }
+
+      .monthly-small {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: #171717;
+        color: white;
+        border-radius: 20px;
+        padding: 16px 18px;
+        font-weight: 950;
+        margin-bottom: 12px;
+      }
+
+      .monthly-small strong {
+        font-size: 1.7rem;
+        letter-spacing: -0.05em;
+      }
+
+      .comparison-bars.compact {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .billing-card {
+        margin: 14px 0;
+        border-radius: 26px;
+        background: #fff8f8;
+        border: 1px solid rgba(215, 25, 32, 0.14);
+        padding: 18px;
+      }
+
+      .billing-head {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        align-items: flex-start;
+        margin-bottom: 14px;
+      }
+
+      .billing-head p {
+        margin: 5px 0 0;
+        color: #666;
+        font-weight: 750;
+      }
+
+      .billing-head > strong {
+        color: #d71920;
+        font-size: 2rem;
+        letter-spacing: -0.06em;
+      }
+
+      .billing-months {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 8px;
+      }
+
+      .billing-month {
+        background: white;
+        border-radius: 18px;
+        padding: 14px;
+        border: 1px solid #eee;
+      }
+
+      .billing-month.free {
+        background: #171717;
+        color: white;
+      }
+
+      .billing-month span,
+      .billing-month small {
+        display: block;
+        font-weight: 850;
+        opacity: 0.7;
+      }
+
+      .billing-month strong {
+        display: block;
+        margin: 8px 0 5px;
+        color: #d71920;
+        font-size: 1.4rem;
+        letter-spacing: -0.05em;
+      }
+
+      .billing-month.free strong {
+        color: white;
+      }
+
+
       @media (max-width: 880px) {
         .sales-shell {
           padding: 10px;
@@ -2305,12 +2711,25 @@ function GlobalStyles() {
 
         .hero-grid,
         .savings-stage,
-        .phone-module {
+        .verizon-discount-module,
+        .fiber-visual-stage,
+        .big-savings-grid,
+        .symmetry-card {
           grid-template-columns: 1fr;
         }
 
         .signal-visual,
-        .contrast-row {
+        .contrast-row,
+        .big-contrast-visual,
+        .comparison-bars.compact {
+          grid-template-columns: 1fr;
+        }
+
+        .example-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .billing-months {
           grid-template-columns: 1fr;
         }
 
