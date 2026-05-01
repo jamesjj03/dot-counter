@@ -25,6 +25,10 @@ import {
   Eraser,
   Wand2,
   RotateCcw,
+  DollarSign,
+  Zap,
+  CheckCircle2,
+  ArrowRight,
 } from "lucide-react";
 
 const REPS = ["JJ", "Sam", "Zack", "Dylan", "Julian", "Chris", "Christian", "Jacob"];
@@ -52,6 +56,26 @@ const DEFAULT_APP = {
     { rep: "JJ", percent: 30 },
     { rep: "Christian", percent: 35 },
   ],
+  sales: {
+    currentBill: 100,
+    activePlanId: "fiber-500",
+    selectedAddonIds: [],
+    plans: [
+      { id: "fiber-500", name: "Fiber 500", speed: "500 Mbps", price: 59.99, badge: "Best starter", bullets: ["Great for streaming", "Video calls", "Everyday home internet"] },
+      { id: "fiber-1g", name: "Fiber 1 Gig", speed: "1 Gig", price: 79.99, badge: "Most popular", bullets: ["Big households", "Gaming", "Fast downloads"] },
+      { id: "fiber-2g", name: "Fiber 2 Gig", speed: "2 Gig", price: 99.99, badge: "Power user", bullets: ["Heavy streaming", "Work from home", "Max speed setup"] },
+    ],
+    addons: [
+      { id: "landline", name: "Landline", price: 25, note: "Keep a home phone line." },
+      { id: "youtube-tv", name: "YouTube TV", price: 72.99, note: "Live TV without cable boxes." },
+      { id: "wifi-extender", name: "Wi-Fi Extender", price: 10, note: "Helps bigger houses and dead zones." },
+    ],
+    fiberPoints: [
+      "Fiber sends data as light through glass, so it is built for speed.",
+      "Upload speed matters for cameras, video calls, gaming, and work from home.",
+      "Fiber is the upgrade from old cable-style internet, not just another plan."
+    ],
+  },
   options: {
     sensitivity: 5,
     expectedDotArea: 220,
@@ -902,6 +926,8 @@ export default function DDMSharksOps() {
 
   const updateAssignments = (assignments) => setApp((prev) => ({ ...prev, assignments }));
   const updateOptions = (options) => setApp((prev) => ({ ...prev, options }));
+  const updateSales = (sales) => setApp((prev) => ({ ...prev, sales: { ...(prev.sales || DEFAULT_APP.sales), ...sales } }));
+  const patchSales = (patch) => setApp((prev) => ({ ...prev, sales: { ...(prev.sales || DEFAULT_APP.sales), ...patch } }));
 
   const exportData = () => {
     const blob = new Blob([JSON.stringify(app, null, 2)], { type: "application/json" });
@@ -1157,10 +1183,15 @@ export default function DDMSharksOps() {
             {mode === "manual" && admin && <ManualBox manualRep={manualRep} setManualRep={setManualRep} polygon={polygon} clear={() => setPolygon([])} saveManual={saveManual} admin={admin} editMode={editMode} setEditMode={setEditMode} selectedTurf={selectedTurf} deleteSelected={() => selectedTurfId && deleteTurf(selectedTurfId)} />}
             {admin && <RepFilter selectedRep={selectedRep} setSelectedRep={setSelectedRep} />}
             {mode === "count" && admin && <Tuning options={app.options} setOptions={updateOptions} reCount={reCount} />}
+            {mode === "sales" && <SalesDoorControls sales={app.sales || DEFAULT_APP.sales} patchSales={patchSales} />}
           </aside>
 
           <section className="space-y-4">
-            {mode === "team" ? (
+            {mode === "sales" ? (
+              <SalesFlow sales={app.sales || DEFAULT_APP.sales} patchSales={patchSales} />
+            ) : mode === "pricing" && admin ? (
+              <PricingAdmin sales={app.sales || DEFAULT_APP.sales} updateSales={updateSales} />
+            ) : mode === "team" ? (
               <TeamView teamStats={teamStats} teamRep={teamRep} setTeamRep={setTeamRep} teamTurfs={teamTurfs} admin={admin} deleteTurf={deleteTurf} setSelectedRep={setSelectedRep} setMode={setMode} />
             ) : mode === "areas" && admin ? (
               <AreaDeck areas={app.areas} switchArea={switchArea} setMode={setMode} admin={admin} />
@@ -1249,6 +1280,220 @@ function drawWorkingPolygon(ctx, points) {
   });
 }
 
+
+function money(value) {
+  const n = Number(value || 0);
+  return n.toLocaleString(undefined, { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function getSalesMath(sales) {
+  const plans = sales.plans || [];
+  const addons = sales.addons || [];
+  const activePlan = plans.find((p) => p.id === sales.activePlanId) || plans[0] || { price: 0, name: "No plan", speed: "" };
+  const selectedAddons = addons.filter((a) => (sales.selectedAddonIds || []).includes(a.id));
+  const addonTotal = selectedAddons.reduce((sum, a) => sum + Number(a.price || 0), 0);
+  const ourTotal = Number(activePlan.price || 0) + addonTotal;
+  const current = Number(sales.currentBill || 0);
+  const monthlySave = current - ourTotal;
+  return { activePlan, selectedAddons, addonTotal, ourTotal, current, monthlySave, yearlySave: monthlySave * 12, threeYearSave: monthlySave * 36 };
+}
+
+function SalesDoorControls({ sales, patchSales }) {
+  const math = getSalesMath(sales);
+  const toggleAddon = (id) => {
+    const current = sales.selectedAddonIds || [];
+    patchSales({ selectedAddonIds: current.includes(id) ? current.filter((x) => x !== id) : [...current, id] });
+  };
+
+  return (
+    <Panel>
+      <h2 className="mb-3 flex items-center text-xl font-black"><DollarSign className="mr-2 h-5 w-5 text-[#f5c542]" /> Sales Flow</h2>
+      <label className="text-xs font-black uppercase tracking-widest text-[#f5c542]/70">Customer pays now</label>
+      <input value={sales.currentBill || ""} onChange={(e) => patchSales({ currentBill: e.target.value })} inputMode="decimal" placeholder="100" className="mt-2 w-full rounded-xl border-2 border-[#f5c542]/25 bg-black/45 px-4 py-4 text-2xl font-black text-white outline-none focus:border-[#f5c542]" />
+
+      <div className="mt-4 space-y-2">
+        <p className="text-xs font-black uppercase tracking-widest text-[#f5c542]/70">Pick our plan</p>
+        {(sales.plans || []).map((plan) => (
+          <button key={plan.id} onClick={() => patchSales({ activePlanId: plan.id })} className={`w-full rounded-xl px-3 py-3 text-left text-sm font-black ring-1 ${math.activePlan.id === plan.id ? "bg-[#f5c542] text-black ring-[#f5c542]" : "bg-black/35 text-white/75 ring-white/10"}`}>
+            <span className="block">{plan.name} • {money(plan.price)}</span>
+            <span className="text-xs opacity-70">{plan.speed}</span>
+          </button>
+        ))}
+      </div>
+
+      <div className="mt-4 space-y-2">
+        <p className="text-xs font-black uppercase tracking-widest text-[#f5c542]/70">Add-ons</p>
+        {(sales.addons || []).map((addon) => {
+          const active = (sales.selectedAddonIds || []).includes(addon.id);
+          return <button key={addon.id} onClick={() => toggleAddon(addon.id)} className={`w-full rounded-xl px-3 py-3 text-left text-sm font-black ring-1 ${active ? "bg-red-700 text-white ring-red-400" : "bg-black/35 text-white/75 ring-white/10"}`}>{active ? "✓ " : "+ "}{addon.name} • {money(addon.price)}</button>;
+        })}
+      </div>
+    </Panel>
+  );
+}
+
+function SalesFlow({ sales, patchSales }) {
+  const [step, setStep] = useState("fiber");
+  const math = getSalesMath(sales);
+  const steps = [["fiber", "1. Fiber"], ["bill", "2. Bill"], ["plans", "3. Options"], ["total", "4. Savings"]];
+
+  return (
+    <div className="space-y-4">
+      <Panel>
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[.25em] text-[#f5c542]/70">Digital laminated paper</p>
+            <h2 className="text-3xl font-black tracking-[-0.05em] sm:text-5xl">Fiber Sales Card</h2>
+          </div>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {steps.map(([key, label]) => <button key={key} onClick={() => setStep(key)} className={`rounded-xl px-3 py-3 text-sm font-black ${step === key ? "bg-[#f5c542] text-black" : "bg-black/45 text-white/70"}`}>{label}</button>)}
+          </div>
+        </div>
+      </Panel>
+
+      {step === "fiber" && <FiberExplainer sales={sales} goNext={() => setStep("bill")} />}
+      {step === "bill" && <BillCompare sales={sales} patchSales={patchSales} math={math} goNext={() => setStep("plans")} />}
+      {step === "plans" && <PlanChooser sales={sales} patchSales={patchSales} math={math} goNext={() => setStep("total")} />}
+      {step === "total" && <SavingsSummary math={math} goBack={() => setStep("plans")} />}
+    </div>
+  );
+}
+
+function FiberExplainer({ sales, goNext }) {
+  return (
+    <Panel>
+      <div className="grid gap-4 lg:grid-cols-[1.1fr_.9fr]">
+        <div>
+          <div className="mb-4 inline-flex rounded-full bg-[#f5c542] px-4 py-2 text-xs font-black uppercase tracking-widest text-black">Start here</div>
+          <h3 className="mb-3 text-4xl font-black tracking-[-0.06em] sm:text-6xl">Fiber is internet built on light.</h3>
+          <p className="text-lg font-bold text-white/65 sm:text-xl">Simple version: old internet is like a crowded road. Fiber is a cleaner, faster lane that can move way more data without choking.</p>
+          <button onClick={goNext} className="mt-5 inline-flex items-center rounded-2xl bg-[#f5c542] px-5 py-4 text-base font-black text-black">Compare their bill <ArrowRight className="ml-2 h-5 w-5" /></button>
+        </div>
+        <div className="grid gap-3">
+          {(sales.fiberPoints || []).map((point, i) => (
+            <div key={i} className="rounded-3xl border border-[#f5c542]/15 bg-black/30 p-4">
+              <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-2xl bg-[#f5c542] text-black"><Zap className="h-5 w-5" /></div>
+              <p className="text-lg font-black text-white">{point}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </Panel>
+  );
+}
+
+function BillCompare({ sales, patchSales, math, goNext }) {
+  return (
+    <Panel>
+      <h3 className="mb-4 text-4xl font-black tracking-[-0.06em]">What are they paying now?</h3>
+      <div className="grid gap-4 md:grid-cols-2">
+        <div className="rounded-3xl bg-black/35 p-5 ring-1 ring-white/10">
+          <p className="mb-2 text-xs font-black uppercase tracking-widest text-white/45">Their current bill</p>
+          <div className="flex items-center gap-2"><span className="text-4xl font-black text-[#f5c542]">$</span><input value={sales.currentBill || ""} onChange={(e) => patchSales({ currentBill: e.target.value })} inputMode="decimal" className="w-full rounded-2xl border-2 border-[#f5c542]/25 bg-black/55 px-4 py-4 text-5xl font-black text-white outline-none focus:border-[#f5c542]" /></div>
+        </div>
+        <div className="rounded-3xl bg-[#f5c542] p-5 text-black">
+          <p className="mb-2 text-xs font-black uppercase tracking-widest opacity-60">Our current setup</p>
+          <p className="text-4xl font-black tracking-[-0.05em]">{math.activePlan.name}</p>
+          <p className="text-xl font-black opacity-70">{math.activePlan.speed} • {money(math.ourTotal)}/mo</p>
+        </div>
+      </div>
+      <button onClick={goNext} className="mt-5 rounded-2xl bg-red-700 px-5 py-4 text-base font-black text-white">Show the options</button>
+    </Panel>
+  );
+}
+
+function PlanChooser({ sales, patchSales, math, goNext }) {
+  const toggleAddon = (id) => {
+    const current = sales.selectedAddonIds || [];
+    patchSales({ selectedAddonIds: current.includes(id) ? current.filter((x) => x !== id) : [...current, id] });
+  };
+
+  return (
+    <Panel>
+      <h3 className="mb-4 text-4xl font-black tracking-[-0.06em]">Pick the cleanest option.</h3>
+      <div className="grid gap-3 lg:grid-cols-3">
+        {(sales.plans || []).map((plan) => {
+          const active = math.activePlan.id === plan.id;
+          return <button key={plan.id} onClick={() => patchSales({ activePlanId: plan.id })} className={`rounded-3xl p-5 text-left ring-2 ${active ? "bg-[#f5c542] text-black ring-[#f5c542]" : "bg-black/30 text-white ring-white/10"}`}>
+            <p className="mb-2 inline-flex rounded-full bg-black/20 px-3 py-1 text-xs font-black uppercase tracking-widest">{plan.badge}</p>
+            <h4 className="text-3xl font-black tracking-[-0.05em]">{plan.name}</h4>
+            <p className="text-xl font-black opacity-75">{plan.speed}</p>
+            <p className="my-3 text-4xl font-black">{money(plan.price)}<span className="text-base">/mo</span></p>
+            {(plan.bullets || []).map((b, i) => <p key={i} className="mt-1 flex items-center text-sm font-black opacity-80"><CheckCircle2 className="mr-2 h-4 w-4" />{b}</p>)}
+          </button>;
+        })}
+      </div>
+      <div className="mt-4 grid gap-2 sm:grid-cols-3">
+        {(sales.addons || []).map((addon) => {
+          const active = (sales.selectedAddonIds || []).includes(addon.id);
+          return <button key={addon.id} onClick={() => toggleAddon(addon.id)} className={`rounded-2xl px-4 py-4 text-left font-black ring-1 ${active ? "bg-red-700 text-white ring-red-400" : "bg-black/30 text-white/75 ring-white/10"}`}>{active ? "✓ " : "+ "}{addon.name}<span className="block text-sm opacity-70">{money(addon.price)}/mo</span></button>;
+        })}
+      </div>
+      <button onClick={goNext} className="mt-5 rounded-2xl bg-[#f5c542] px-5 py-4 text-base font-black text-black">Show savings</button>
+    </Panel>
+  );
+}
+
+function SavingsSummary({ math, goBack }) {
+  const saving = math.monthlySave >= 0;
+  return (
+    <Panel>
+      <div className="rounded-[2rem] bg-black/35 p-5 ring-1 ring-white/10">
+        <p className="text-xs font-black uppercase tracking-[.25em] text-[#f5c542]/70">Final comparison</p>
+        <h3 className="mt-2 text-4xl font-black tracking-[-0.06em] sm:text-6xl">{saving ? "They save money." : "This option costs more."}</h3>
+        <div className="mt-5 grid gap-3 md:grid-cols-3">
+          <Stat label="Now" value={`${money(math.current)}/mo`} />
+          <Stat label="With us" value={`${money(math.ourTotal)}/mo`} gold />
+          <Stat label={saving ? "Monthly savings" : "Monthly difference"} value={money(Math.abs(math.monthlySave))} pink={!saving} gold={saving} />
+        </div>
+        <div className="mt-4 grid gap-3 md:grid-cols-2">
+          <div className="rounded-3xl bg-[#f5c542] p-5 text-black"><p className="text-sm font-black uppercase opacity-60">1 year</p><p className="text-5xl font-black tracking-[-0.06em]">{money(Math.abs(math.yearlySave))}</p></div>
+          <div className="rounded-3xl bg-red-700 p-5 text-white"><p className="text-sm font-black uppercase opacity-70">3 years</p><p className="text-5xl font-black tracking-[-0.06em]">{money(Math.abs(math.threeYearSave))}</p></div>
+        </div>
+        <p className="mt-4 text-lg font-bold text-white/60">Selected: {math.activePlan.name} at {money(math.activePlan.price)}/mo{math.selectedAddons.length ? ` + ${math.selectedAddons.map((a) => a.name).join(" + ")}` : ""}</p>
+        <button onClick={goBack} className="mt-4 rounded-2xl bg-white/10 px-5 py-4 text-base font-black text-white/80">Adjust package</button>
+      </div>
+    </Panel>
+  );
+}
+
+function PricingAdmin({ sales, updateSales }) {
+  const updatePlan = (id, field, value) => updateSales({ ...sales, plans: (sales.plans || []).map((p) => p.id === id ? { ...p, [field]: field === "price" ? Number(value || 0) : value } : p) });
+  const updateAddon = (id, field, value) => updateSales({ ...sales, addons: (sales.addons || []).map((a) => a.id === id ? { ...a, [field]: field === "price" ? Number(value || 0) : value } : a) });
+  const addPlan = () => updateSales({ ...sales, plans: [...(sales.plans || []), { id: uid(), name: "New Plan", speed: "", price: 0, badge: "", bullets: [] }] });
+  const addAddon = () => updateSales({ ...sales, addons: [...(sales.addons || []), { id: uid(), name: "New Add-on", price: 0, note: "" }] });
+
+  return (
+    <div className="space-y-4">
+      <Panel>
+        <h2 className="text-3xl font-black tracking-[-0.05em]">Pricing Admin</h2>
+        <p className="mt-1 text-sm font-bold text-white/50">Edit plans and add-ons here. It saves with the rest of the app cloud state.</p>
+      </Panel>
+      <Panel>
+        <div className="mb-3 flex items-center justify-between"><h3 className="text-xl font-black">Plans</h3><button onClick={addPlan} className="rounded-xl bg-[#f5c542] px-4 py-2 text-sm font-black text-black">Add plan</button></div>
+        <div className="space-y-3">
+          {(sales.plans || []).map((plan) => <div key={plan.id} className="grid gap-2 rounded-2xl bg-black/30 p-3 md:grid-cols-4">
+            <input value={plan.name} onChange={(e) => updatePlan(plan.id, "name", e.target.value)} className="rounded-xl bg-white px-3 py-3 font-black text-black" />
+            <input value={plan.speed} onChange={(e) => updatePlan(plan.id, "speed", e.target.value)} className="rounded-xl bg-white px-3 py-3 font-black text-black" />
+            <input value={plan.price} onChange={(e) => updatePlan(plan.id, "price", e.target.value)} inputMode="decimal" className="rounded-xl bg-white px-3 py-3 font-black text-black" />
+            <input value={plan.badge || ""} onChange={(e) => updatePlan(plan.id, "badge", e.target.value)} className="rounded-xl bg-white px-3 py-3 font-black text-black" />
+          </div>)}
+        </div>
+      </Panel>
+      <Panel>
+        <div className="mb-3 flex items-center justify-between"><h3 className="text-xl font-black">Add-ons</h3><button onClick={addAddon} className="rounded-xl bg-[#f5c542] px-4 py-2 text-sm font-black text-black">Add add-on</button></div>
+        <div className="space-y-3">
+          {(sales.addons || []).map((addon) => <div key={addon.id} className="grid gap-2 rounded-2xl bg-black/30 p-3 md:grid-cols-3">
+            <input value={addon.name} onChange={(e) => updateAddon(addon.id, "name", e.target.value)} className="rounded-xl bg-white px-3 py-3 font-black text-black" />
+            <input value={addon.price} onChange={(e) => updateAddon(addon.id, "price", e.target.value)} inputMode="decimal" className="rounded-xl bg-white px-3 py-3 font-black text-black" />
+            <input value={addon.note || ""} onChange={(e) => updateAddon(addon.id, "note", e.target.value)} className="rounded-xl bg-white px-3 py-3 font-black text-black" />
+          </div>)}
+        </div>
+      </Panel>
+    </div>
+  );
+}
+
 function SharkBg() {
   return (
     <div className="pointer-events-none fixed inset-0 overflow-hidden">
@@ -1265,8 +1510,8 @@ function SharkBg() {
 
 function Header({ mode, setMode, admin }) {
   const tabs = admin
-    ? [["areas", <Layers />, "Areas"], ["upload", <Upload />, "Upload"], ["count", <Target />, "Count"], ["erase", <Eraser />, "Erase"], ["auto", <Split />, "Auto"], ["manual", <Scissors />, "Cut"], ["team", <Users />, "Team"]]
-    : [["manual", <Map />, "Map"], ["team", <Users />, "Team"]];
+    ? [["sales", <DollarSign />, "Sales"], ["pricing", <Percent />, "Pricing"], ["areas", <Layers />, "Areas"], ["upload", <Upload />, "Upload"], ["count", <Target />, "Count"], ["erase", <Eraser />, "Erase"], ["auto", <Split />, "Auto"], ["manual", <Scissors />, "Cut"], ["team", <Users />, "Team"]]
+    : [["sales", <DollarSign />, "Sales"], ["manual", <Map />, "Map"], ["team", <Users />, "Team"]];
 
   return (
     <header className="mb-3 rounded-[1.25rem] border border-[#f5c542]/15 bg-[#1b1410]/90 p-3 text-center shadow-xl shadow-black/30 backdrop-blur-xl sm:p-4">
@@ -1279,7 +1524,7 @@ function Header({ mode, setMode, admin }) {
             <span className="bg-gradient-to-r from-[#f7f3ea] via-[#f5c542] to-[#ef4444] bg-clip-text text-transparent">DDM SHARKS</span>
           </h1>
         </div>
-        <div className={`grid w-full max-w-4xl gap-1.5 rounded-2xl bg-black/70 p-1.5 ${admin ? "grid-cols-4 sm:grid-cols-7" : "grid-cols-2 sm:max-w-md"}`}>
+        <div className={`grid w-full max-w-4xl gap-1.5 rounded-2xl bg-black/70 p-1.5 ${admin ? "grid-cols-3 sm:grid-cols-5 lg:grid-cols-9" : "grid-cols-3 sm:max-w-xl"}`}>
           {tabs.map(([key, icon, label]) => (
             <button key={key} onClick={() => setMode(key)} className={`flex min-h-9 items-center justify-center rounded-xl px-2 text-xs font-black transition sm:min-h-10 ${mode === key ? "bg-[#f5c542] text-black shadow-lg shadow-[#f5c542]/20" : "text-white/70 hover:bg-white/10"}`}>
               {React.cloneElement(icon, { className: "mr-1 h-3.5 w-3.5" })}{label}
