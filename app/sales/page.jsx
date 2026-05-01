@@ -13,7 +13,14 @@ const supabase =
 const CLOUD_TABLE = "app_state";
 const CLOUD_ID = "sales_page_settings_v2";
 const LOCAL_KEY = "frontier_sales_page_settings_v2";
+const PROFILE_KEY = "frontier_sales_rep_profile_v1";
 const PIN = "6969";
+
+const DEFAULT_PROFILE = {
+  repName: "",
+  defaultAddonIds: ["extender"],
+  useGiftCard: true,
+};
 
 function uid() {
   try {
@@ -91,11 +98,12 @@ const DEFAULT_SETTINGS = {
     { label: "Busy house", oldValue: "crowded", newValue: "room", icon: "HOME" },
     { label: "Smart devices", oldValue: "drop-offs", newValue: "steady", icon: "WIFI" },
   ],
-        { label: "Month 2", amount: 0, note: "Promo month" },
-      { label: "Month 3", amount: "AUTO", note: "First regular bill estimate" },
-      { label: "Month 4", amount: "AUTO", note: "Regular monthly estimate" },
-      { label: "Month 5", amount: "AUTO", note: "Regular monthly estimate" },
-    ],
+  billingSchedule: {
+    enabled: true,
+    title: "First five months",
+    note: "First two months show $0. Day 61 shows add-ons only. Gift card can be applied to months 4 and 5.",
+    giftCardAmount: 100,
+    giftCardLabel: "$100 Visa gift card",
   },
   plans: [
     {
@@ -246,6 +254,37 @@ function saveLocalSettings(settings) {
   } catch (e) {}
 }
 
+function loadRepProfile() {
+  try {
+    if (typeof window === "undefined") return DEFAULT_PROFILE;
+    const raw = window.localStorage.getItem(PROFILE_KEY);
+    if (!raw) return DEFAULT_PROFILE;
+    const parsed = JSON.parse(raw);
+    return {
+      ...DEFAULT_PROFILE,
+      ...(parsed || {}),
+      defaultAddonIds: Array.isArray(parsed && parsed.defaultAddonIds)
+        ? parsed.defaultAddonIds
+        : DEFAULT_PROFILE.defaultAddonIds,
+    };
+  } catch (e) {
+    return DEFAULT_PROFILE;
+  }
+}
+
+function saveRepProfile(profile) {
+  try {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
+  } catch (e) {}
+}
+
+function getAddonsTotal(addons, ids) {
+  return (addons || [])
+    .filter((addon) => (ids || []).indexOf(addon.id) !== -1)
+    .reduce((sum, addon) => sum + cleanNumber(addon.price), 0);
+}
+
 function mergeSettings(incoming) {
   const merged = {
     ...DEFAULT_SETTINGS,
@@ -274,7 +313,11 @@ function mergeSettings(incoming) {
       incoming && Array.isArray(incoming.visualExamples)
         ? incoming.visualExamples
         : DEFAULT_SETTINGS.visualExamples,
-      };
+    billingSchedule: {
+      ...DEFAULT_SETTINGS.billingSchedule,
+      ...((incoming && incoming.billingSchedule) || {}),
+    },
+  };
 
   if (!merged.primaryPlanId && merged.plans[0]) {
     merged.primaryPlanId = merged.plans[0].id;
@@ -294,7 +337,8 @@ export default function SalesPage() {
   const [step, setStep] = useState("fiber");
   const [currentBill, setCurrentBill] = useState("");
   const [selectedPlanId, setSelectedPlanId] = useState(DEFAULT_SETTINGS.primaryPlanId);
-  const [selectedAddons, setSelectedAddons] = useState([]);
+  const [selectedAddons, setSelectedAddons] = useState(DEFAULT_PROFILE.defaultAddonIds);
+  const [profile, setProfile] = useState(DEFAULT_PROFILE);
   const [isVerizonCustomer, setIsVerizonCustomer] = useState(false);
   const saveTimerRef = useRef(null);
 
@@ -302,6 +346,12 @@ export default function SalesPage() {
     let cancelled = false;
 
     async function boot() {
+      const savedProfile = loadRepProfile();
+      if (!cancelled) {
+        setProfile(savedProfile);
+        setSelectedAddons(savedProfile.defaultAddonIds || DEFAULT_PROFILE.defaultAddonIds);
+      }
+
       const local = loadLocalSettings();
       if (local && !cancelled) {
         const mergedLocal = mergeSettings(local);
@@ -338,6 +388,10 @@ export default function SalesPage() {
       clearTimeout(failsafe);
     };
   }, []);
+
+  useEffect(() => {
+    saveRepProfile(profile);
+  }, [profile]);
 
   useEffect(() => {
     saveLocalSettings(settings);
@@ -404,7 +458,8 @@ export default function SalesPage() {
     const fresh = safeJsonClone(DEFAULT_SETTINGS);
     setSettings(fresh);
     setSelectedPlanId(fresh.primaryPlanId);
-    setSelectedAddons([]);
+    setProfile(DEFAULT_PROFILE);
+    setSelectedAddons(DEFAULT_PROFILE.defaultAddonIds);
     setIsVerizonCustomer(false);
   };
 
@@ -505,6 +560,8 @@ export default function SalesPage() {
               settings={settings}
               selectedPlanId={selectedPlanId}
               setSelectedPlanId={setSelectedPlanId}
+              defaultAddonTotal={getAddonsTotal(settings.addons, profile.defaultAddonIds)}
+              profile={profile}
               setStep={setStep}
             />
           )}
@@ -514,6 +571,8 @@ export default function SalesPage() {
               settings={settings}
               selectedAddons={selectedAddons}
               setSelectedAddons={setSelectedAddons}
+              profile={profile}
+              setProfile={setProfile}
               isVerizonCustomer={isVerizonCustomer}
               setIsVerizonCustomer={setIsVerizonCustomer}
               verizonSavings={verizonSavings}
@@ -527,6 +586,8 @@ export default function SalesPage() {
               currentMonthly={currentMonthly}
               selectedPlan={selectedPlan}
               addonTotal={addonTotal}
+              selectedAddons={selectedAddons}
+              profile={profile}
               isVerizonCustomer={isVerizonCustomer}
               verizonSavings={verizonSavings}
               ourMonthly={ourMonthly}
@@ -714,20 +775,23 @@ function BillStep({ currentBill, setCurrentBill, setStep }) {
   );
 }
 
-function PlansStep({ settings, selectedPlanId, setSelectedPlanId, setStep }) {
+function PlansStep({ settings, selectedPlanId, setSelectedPlanId, defaultAddonTotal, profile, setStep }) {
+  const defaultLabel = profile.defaultAddonIds && profile.defaultAddonIds.length
+    ? "Includes default options"
+    : "Base internet price";
+
   return (
     <section className="plans-stage">
       <div className="section-heading">
         <div className="label-red">Plans</div>
         <h1>Pick the plan that fits the home.</h1>
-        <p>
-          Most homes choose 1 Gig because it gives the best balance of speed, price, and headroom.
-        </p>
+        <p>Prices shown include the saved default package for this device.</p>
       </div>
 
       <div className="plan-grid">
         {settings.plans.map((plan) => {
           const active = selectedPlanId === plan.id;
+          const displayPrice = cleanNumber(plan.price) + cleanNumber(defaultAddonTotal);
           return (
             <button
               key={plan.id}
@@ -741,9 +805,10 @@ function PlansStep({ settings, selectedPlanId, setSelectedPlanId, setStep }) {
               </div>
               <h2>{plan.name}</h2>
               <div className="price-line">
-                <span>{money(plan.price)}</span>
+                <span>{money(displayPrice)}</span>
                 <small>/mo</small>
               </div>
+              <div className="included-line">{defaultLabel}</div>
               <p>{plan.description}</p>
             </button>
           );
@@ -751,7 +816,7 @@ function PlansStep({ settings, selectedPlanId, setSelectedPlanId, setStep }) {
       </div>
 
       <button className="primary-action wide" onClick={() => setStep("options")}>
-        Add options
+        Adjust options
       </button>
     </section>
   );
@@ -761,6 +826,8 @@ function OptionsStep({
   settings,
   selectedAddons,
   setSelectedAddons,
+  profile,
+  setProfile,
   isVerizonCustomer,
   setIsVerizonCustomer,
   verizonSavings,
@@ -774,15 +841,57 @@ function OptionsStep({
     }
   };
 
+  const toggleDefaultAddon = (id) => {
+    const current = profile.defaultAddonIds || [];
+    const next = current.indexOf(id) !== -1
+      ? current.filter((x) => x !== id)
+      : [...current, id];
+    setProfile({ ...profile, defaultAddonIds: next });
+    setSelectedAddons(next);
+  };
+
   return (
     <section className="options-stage">
       <div className="section-heading">
         <div className="label-red">Options</div>
-        <h1>Add only what they actually need.</h1>
+        <h1>Default package first. Adjust if needed.</h1>
         <p>
-          Internet first. Then add phone, TV, landline, or Wi-Fi help only if it
-          fits the house.
+          Wi-Fi Extender is the standard default. It can still be turned off when the quote needs to change.
         </p>
+      </div>
+
+      <div className="rep-profile-card">
+        <div>
+          <div className="label-red">Rep setup</div>
+          <h2>{profile.repName ? profile.repName + "'s default" : "Local default package"}</h2>
+          <p>This saves only on this device. Use it to make the plan page match the way you pitch.</p>
+        </div>
+        <label className="rep-name-field">
+          <span>Rep name</span>
+          <input
+            value={profile.repName || ""}
+            placeholder="JJ, Sam, Christian..."
+            onChange={(e) => setProfile({ ...profile, repName: e.target.value })}
+          />
+        </label>
+        <div className="default-toggle-row">
+          {settings.addons
+            .filter((addon) => addon.id === "extender" || addon.id === "security")
+            .map((addon) => {
+              const active = (profile.defaultAddonIds || []).indexOf(addon.id) !== -1;
+              return (
+                <button
+                  key={addon.id}
+                  className={active ? "default-toggle active" : "default-toggle"}
+                  onClick={() => toggleDefaultAddon(addon.id)}
+                >
+                  <span>{active ? "Default on" : "Default off"}</span>
+                  <strong>{addon.name}</strong>
+                  <em>{money(addon.price)}/mo</em>
+                </button>
+              );
+            })}
+        </div>
       </div>
 
       <div className="option-grid">
@@ -833,6 +942,8 @@ function SavingsStep({
   currentMonthly,
   selectedPlan,
   addonTotal,
+  selectedAddons,
+  profile,
   isVerizonCustomer,
   verizonSavings,
   ourMonthly,
@@ -842,6 +953,18 @@ function SavingsStep({
   setStep,
 }) {
   const saving = monthlySavings > 0;
+  const schedule = settings.billingSchedule || {};
+  const giftCardAmount = cleanNumber(schedule.giftCardAmount || 0);
+  const useGiftCard = !!profile.useGiftCard;
+  const promoAddonTotal = addonTotal;
+  const month4BeforeGift = Math.max(0, ourMonthly);
+  const giftAppliedMonth4 = useGiftCard ? Math.min(giftCardAmount, month4BeforeGift) : 0;
+  const month4AfterGift = Math.max(0, month4BeforeGift - giftAppliedMonth4);
+  const giftLeft = Math.max(0, giftCardAmount - giftAppliedMonth4);
+  const month5BeforeGift = Math.max(0, ourMonthly);
+  const giftAppliedMonth5 = useGiftCard ? Math.min(giftLeft, month5BeforeGift) : 0;
+  const month5AfterGift = Math.max(0, month5BeforeGift - giftAppliedMonth5);
+  const firstFiveTotal = promoAddonTotal + month4AfterGift + month5AfterGift;
 
   return (
     <section className="savings-stage">
@@ -876,7 +999,36 @@ function SavingsStep({
           </div>
         </div>
 
-        </div>
+        {schedule.enabled && (
+          <div className="billing-card">
+            <div className="billing-head">
+              <div>
+                <span className="label-red">{schedule.title || "First five months"}</span>
+                <p>{schedule.note}</p>
+              </div>
+              <strong>{money(firstFiveTotal)}</strong>
+            </div>
+
+            <div className="gift-card-row">
+              <div>
+                <span>{schedule.giftCardLabel || "$100 Visa gift card"}</span>
+                <strong>Arrives after Month 3</strong>
+              </div>
+              <button
+                className={useGiftCard ? "gift-toggle active" : "gift-toggle"}
+                onClick={() => setProfile({ ...profile, useGiftCard: !useGiftCard })}
+              >
+                {useGiftCard ? "Apply to next months" : "Do not apply"}
+              </button>
+            </div>
+
+            <div className="billing-months new-billing-months">
+              <BillingMonth label="Month 1" amount={0} note="Promo month" />
+              <BillingMonth label="Month 2" amount={0} note="Promo month" />
+              <BillingMonth label="Day 61" amount={promoAddonTotal} note="Add-ons only" />
+              <BillingMonth label="Month 4" amount={month4AfterGift} original={useGiftCard ? month4BeforeGift : null} note={useGiftCard ? "Gift card applied" : "Normal quote"} />
+              <BillingMonth label="Month 5" amount={month5AfterGift} original={useGiftCard && giftAppliedMonth5 ? month5BeforeGift : null} note={useGiftCard && giftAppliedMonth5 ? "Gift card applied" : "Normal quote"} />
+            </div>
           </div>
         )}
 
@@ -899,6 +1051,20 @@ function SavingsStep({
         </div>
       </div>
     </section>
+  );
+}
+
+function BillingMonth({ label, amount, original, note }) {
+  const free = cleanNumber(amount) === 0;
+  return (
+    <div className={free ? "billing-month free" : "billing-month"}>
+      <span>{label}</span>
+      <strong>
+        {original ? <em>{money(original)}</em> : null}
+        {free ? "$0" : money(amount)}
+      </strong>
+      <small>{note}</small>
+    </div>
   );
 }
 
@@ -1018,20 +1184,6 @@ function AdminEditor({ settings, setSettings, resetDefaults, saveStatus, error }
     });
   };
 
-  const updatePhone = (patch) => {
-    setSettings({
-      ...settings,
-      phone: { ...settings.phone, ...patch },
-    });
-  };
-
-  const updatePhonePlan = (index, patch) => {
-    updatePhone({
-      plans: settings.phone.plans.map((plan, i) =>
-        i === index ? { ...plan, ...patch } : plan
-      ),
-    });
-  };
 
   return (
     <section className="admin-panel">
@@ -1154,8 +1306,40 @@ function AdminEditor({ settings, setSettings, resetDefaults, saveStatus, error }
         ))}
       </AdminSection>
 
-      
+      <AdminSection title="First five months billing">
+        <div className="admin-card">
+          <label className="check-row">
+            <input
+              type="checkbox"
+              checked={!!settings.billingSchedule.enabled}
+              onChange={(e) => setSettings({ ...settings, billingSchedule: { ...settings.billingSchedule, enabled: e.target.checked } })}
+            />
+            Show first-five-month breakdown
+          </label>
+          <Field
+            label="Billing title"
+            value={settings.billingSchedule.title}
+            onChange={(v) => setSettings({ ...settings, billingSchedule: { ...settings.billingSchedule, title: v } })}
+          />
+          <TextField
+            label="Billing note"
+            value={settings.billingSchedule.note}
+            onChange={(v) => setSettings({ ...settings, billingSchedule: { ...settings.billingSchedule, note: v } })}
+          />
+          <MoneyField
+            label="Gift card amount"
+            value={settings.billingSchedule.giftCardAmount}
+            onChange={(v) => setSettings({ ...settings, billingSchedule: { ...settings.billingSchedule, giftCardAmount: v } })}
+          />
+          <Field
+            label="Gift card label"
+            value={settings.billingSchedule.giftCardLabel}
+            onChange={(v) => setSettings({ ...settings, billingSchedule: { ...settings.billingSchedule, giftCardLabel: v } })}
+          />
+        </div>
+      </AdminSection>
 
+      
       <AdminSection title="Plans">
         {settings.plans.map((plan) => (
           <div className={plan.featured ? "admin-card primary-plan-admin" : "admin-card"} key={plan.id}>
@@ -2950,6 +3134,158 @@ function GlobalStyles() {
       }
 
 
+
+      .included-line {
+        display: inline-flex;
+        margin-top: 8px;
+        border-radius: 999px;
+        background: #fff0f0;
+        color: #d71920;
+        padding: 7px 10px;
+        font-size: 0.78rem;
+        font-weight: 1000;
+      }
+
+      .rep-profile-card {
+        margin-bottom: 18px;
+        padding: 22px;
+        display: grid;
+        grid-template-columns: 1fr minmax(190px, 260px) 1.2fr;
+        gap: 16px;
+        align-items: center;
+        background: rgba(255, 255, 255, 0.96);
+        border: 1px solid rgba(0, 0, 0, 0.07);
+        border-radius: 30px;
+        box-shadow: 0 18px 55px rgba(0, 0, 0, 0.1);
+      }
+
+      .rep-profile-card h2 {
+        margin: 5px 0;
+        font-size: 1.7rem;
+        letter-spacing: -0.05em;
+      }
+
+      .rep-profile-card p {
+        margin: 0;
+        color: #555;
+        font-weight: 750;
+        line-height: 1.35;
+      }
+
+      .rep-name-field {
+        display: grid;
+        gap: 6px;
+      }
+
+      .rep-name-field span {
+        color: #555;
+        font-size: 0.82rem;
+        font-weight: 1000;
+      }
+
+      .rep-name-field input {
+        width: 100%;
+        border: 1px solid #ddd;
+        border-radius: 16px;
+        padding: 14px;
+        font-weight: 900;
+        outline: none;
+      }
+
+      .rep-name-field input:focus {
+        border-color: #d71920;
+      }
+
+      .default-toggle-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+      }
+
+      .default-toggle {
+        border: 2px solid #e5e5e5;
+        background: #fff;
+        border-radius: 18px;
+        padding: 12px;
+        display: grid;
+        gap: 4px;
+        text-align: left;
+      }
+
+      .default-toggle span {
+        color: #777;
+        font-size: 0.72rem;
+        font-weight: 1000;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+      }
+
+      .default-toggle strong {
+        font-size: 1rem;
+        letter-spacing: -0.03em;
+      }
+
+      .default-toggle em {
+        color: #d71920;
+        font-style: normal;
+        font-weight: 1000;
+      }
+
+      .default-toggle.active {
+        border-color: #d71920;
+        background: #fff4f4;
+      }
+
+      .gift-card-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        align-items: center;
+        background: white;
+        border-radius: 20px;
+        border: 1px solid rgba(215, 25, 32, 0.14);
+        padding: 14px;
+        margin-bottom: 14px;
+      }
+
+      .gift-card-row span,
+      .gift-card-row strong {
+        display: block;
+      }
+
+      .gift-card-row span {
+        color: #d71920;
+        font-weight: 1000;
+      }
+
+      .gift-card-row strong {
+        font-size: 1.2rem;
+        letter-spacing: -0.04em;
+      }
+
+      .gift-toggle {
+        border: 2px solid #ddd;
+        border-radius: 16px;
+        background: #fff;
+        padding: 12px 14px;
+        font-weight: 1000;
+      }
+
+      .gift-toggle.active {
+        border-color: #d71920;
+        background: #d71920;
+        color: #fff;
+      }
+
+      .billing-month strong em {
+        display: block;
+        color: #999;
+        text-decoration: line-through;
+        font-size: 0.95rem;
+        letter-spacing: -0.02em;
+        font-style: normal;
+      }
+
       @media (max-width: 880px) {
         .sales-shell {
           padding: 10px;
@@ -2978,6 +3314,7 @@ function GlobalStyles() {
         .hero-grid,
         .savings-stage,
         .verizon-discount-module,
+        .rep-profile-card,
         .fiber-visual-stage,
         .big-savings-grid,
         .symmetry-card,
@@ -3005,7 +3342,8 @@ function GlobalStyles() {
           grid-template-columns: 1fr;
         }
 
-        .billing-months {
+        .billing-months,
+        .default-toggle-row {
           grid-template-columns: 1fr;
         }
 
