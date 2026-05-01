@@ -94,7 +94,7 @@ const DEFAULT_SETTINGS = {
   billingSchedule: {
     enabled: true,
     title: "First few months",
-    note: "Edit these once Sam confirms the exact promo/billing timing.",
+    note: "First two months free, then regular monthly billing begins.",
     months: [
       { label: "Month 1", amount: 0, note: "Promo month" },
       { label: "Month 2", amount: 0, note: "Promo month" },
@@ -573,77 +573,118 @@ function FlowButton({ step, active, setStep, label }) {
 
 function FiberStep({ settings, setStep }) {
   return (
-    <section className="fiber-visual-stage">
-      <div className="fiber-hero-simple">
-        <div>
-          <div className="label-red">Fiber vs cable</div>
-          <h1>They should feel the difference in five seconds.</h1>
+    <section className="home-stage">
+      <div className="home-hero">
+        <div className="home-copy">
+          <div className="label-red">Home internet comparison</div>
+          <h1>Same house. Cleaner connection.</h1>
           <p>
-            No speech. No wall of text. Just show what happens when the house is
-            actually online.
+            Show the difference without making anyone read a brochure.
           </p>
         </div>
 
-        <div className="big-contrast-visual">
-          <div className="connection-side cable-side">
-            <div className="connection-title">COAX</div>
-            <div className="house-row crowded">
-              <span>TV</span><span>Game</span><span>Calls</span><span>Phones</span><span>Work</span>
+        <div className="house-comparison">
+          <div className="home-card old-home">
+            <div className="provider-pill">Xfinity / Spectrum</div>
+            <div className="mini-house">
+              <div className="roof"></div>
+              <div className="house-body">
+                <Device label="TV" status="buffering" bad />
+                <Device label="Game" status="lag" bad />
+                <Device label="Call" status="frozen" bad />
+                <Device label="Laptop" status="slow" bad />
+              </div>
             </div>
-            <div className="pipe small-pipe">
-              <i></i><i></i><i></i>
+            <div className="home-caption bad-caption">
+              <strong>When the house gets busy</strong>
+              <span>shared line • slower uploads • bottlenecks</span>
             </div>
-            <strong>shared line</strong>
-            <small>slower uploads • neighborhood slowdown • bottlenecks</small>
           </div>
 
-          <div className="vs-core">VS</div>
+          <div className="home-vs">VS</div>
 
-          <div className="connection-side fiber-side">
-            <div className="connection-title">FIBER</div>
-            <div className="house-row clear">
-              <span>TV</span><span>Game</span><span>Calls</span><span>Phones</span><span>Work</span>
+          <div className="home-card fiber-home">
+            <div className="provider-pill fiber-pill">Fiber</div>
+            <div className="mini-house">
+              <div className="roof"></div>
+              <div className="house-body">
+                <Device label="TV" status="smooth" />
+                <Device label="Game" status="steady" />
+                <Device label="Call" status="clear" />
+                <Device label="Laptop" status="fast" />
+              </div>
             </div>
-            <div className="pipe fiber-pipe">
-              <i></i><i></i><i></i>
+            <div className="home-caption good-caption">
+              <strong>When the house gets busy</strong>
+              <span>fiber line • fast uploads • more room</span>
             </div>
-            <strong>light-speed line</strong>
-            <small>fast downloads • fast uploads • more room for the house</small>
           </div>
         </div>
 
         <button className="primary-action" onClick={() => setStep("bill")}>
-          Compare their bill
+          Compare the bill
         </button>
       </div>
 
-      <div className="example-grid">
-        {settings.visualExamples.map((item, index) => (
-          <div className="example-card" key={index}>
-            <div className="example-icon">{item.icon}</div>
-            <h3>{item.label}</h3>
-            <div className="mini-compare">
-              <span className="old-chip">{item.oldValue}</span>
-              <span className="arrow-chip">→</span>
-              <span className="new-chip">{item.newValue}</span>
-            </div>
+      <div className="proof-strip">
+        <div className="proof-card shared">
+          <div className="proof-title">Shared cable path</div>
+          <div className="neighborhood-row">
+            <span>Home</span><span>Home</span><span>Home</span><span>Home</span>
           </div>
-        ))}
+          <div className="choked-line">
+            <i></i><i></i><i></i>
+          </div>
+          <strong>Everyone pulls from the same road.</strong>
+        </div>
+
+        <div className="proof-card direct">
+          <div className="proof-title">Fiber path</div>
+          <div className="direct-line">
+            <i></i>
+          </div>
+          <div className="single-home">Your home</div>
+          <strong>Cleaner path with more capacity.</strong>
+        </div>
       </div>
 
-      <div className="symmetry-card">
-        <div>
-          <span>download</span>
-          <strong>↓ fast</strong>
+      <div className="quick-compare">
+        <div className="compare-row head">
+          <span></span>
+          <strong>Xfinity / Spectrum</strong>
+          <strong>Fiber</strong>
         </div>
-        <div className="equal-mark">=</div>
-        <div>
-          <span>upload</span>
-          <strong>↑ fast</strong>
+        <div className="compare-row">
+          <span>Downloads</span>
+          <em>Fast</em>
+          <strong>Fast</strong>
         </div>
-        <p>That is the symmetrical part. It matters for calls, gaming, uploads, work files, cameras, and cloud stuff.</p>
+        <div className="compare-row">
+          <span>Uploads</span>
+          <em>Usually slower</em>
+          <strong>Fast too</strong>
+        </div>
+        <div className="compare-row">
+          <span>Busy hours</span>
+          <em>Can slow down</em>
+          <strong>Stays steadier</strong>
+        </div>
+        <div className="compare-row">
+          <span>Whole house</span>
+          <em>Gets crowded</em>
+          <strong>More headroom</strong>
+        </div>
       </div>
     </section>
+  );
+}
+
+function Device({ label, status, bad }) {
+  return (
+    <div className={bad ? "device bad" : "device good"}>
+      <span>{label}</span>
+      <strong>{status}</strong>
+    </div>
   );
 }
 
@@ -653,10 +694,9 @@ function BillStep({ currentBill, setCurrentBill, setStep }) {
     <section className="center-stage">
       <div className="big-card">
         <div className="label-red">Current bill</div>
-        <h1>What are they paying now?</h1>
+        <h1>What is the current bill?</h1>
         <p>
-          Start with their number. Then the rest of the page turns it into a clean
-          monthly, yearly, and three-year comparison.
+          Enter the current monthly internet bill, then compare it against the new fiber quote.
         </p>
 
         <div className="bill-input-wrap">
@@ -695,10 +735,9 @@ function PlansStep({ settings, selectedPlanId, setSelectedPlanId, setStep }) {
     <section className="plans-stage">
       <div className="section-heading">
         <div className="label-red">Plans</div>
-        <h1>Lead with the plan that makes the most sense.</h1>
+        <h1>Pick the plan that fits the home.</h1>
         <p>
-          1 Gig is marked as the main recommendation because that is the common
-          switch and best value.
+          Most homes choose 1 Gig because it gives the best balance of speed, price, and headroom.
         </p>
       </div>
 
@@ -2572,7 +2611,7 @@ function GlobalStyles() {
       }
 
       .three-year-save {
-        transform: scale(1.02);
+        transform: none;
       }
 
       .year-save span,
@@ -2594,7 +2633,7 @@ function GlobalStyles() {
       }
 
       .three-year-save strong {
-        font-size: clamp(3.8rem, 8vw, 7.5rem);
+        font-size: clamp(3rem, 7vw, 6.2rem);
       }
 
       .monthly-small {
@@ -2684,6 +2723,330 @@ function GlobalStyles() {
       }
 
 
+
+      .home-stage {
+        max-width: 1260px;
+        margin: 0 auto;
+        display: grid;
+        gap: 18px;
+      }
+
+      .home-hero,
+      .proof-card,
+      .quick-compare {
+        background: rgba(255, 255, 255, 0.96);
+        border: 1px solid rgba(0, 0, 0, 0.07);
+        border-radius: 30px;
+        box-shadow: 0 18px 55px rgba(0, 0, 0, 0.1);
+      }
+
+      .home-hero {
+        padding: clamp(22px, 4vw, 38px);
+      }
+
+      .home-copy h1 {
+        margin: 7px 0 10px;
+        font-size: clamp(2.15rem, 5vw, 4.7rem);
+        letter-spacing: -0.075em;
+        line-height: 0.9;
+      }
+
+      .home-copy p {
+        margin: 0 0 20px;
+        color: #555;
+        font-size: 1.05rem;
+        line-height: 1.45;
+        font-weight: 750;
+      }
+
+      .house-comparison {
+        display: grid;
+        grid-template-columns: 1fr auto 1fr;
+        gap: 14px;
+        align-items: stretch;
+        margin: 18px 0 22px;
+      }
+
+      .home-card {
+        min-height: 360px;
+        border-radius: 30px;
+        padding: 18px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        overflow: hidden;
+      }
+
+      .old-home {
+        background:
+          radial-gradient(circle at 20% 20%, rgba(0, 0, 0, 0.08), transparent 16rem),
+          linear-gradient(135deg, #eeeeee, #d7d7d7);
+        color: #3e3e3e;
+      }
+
+      .fiber-home {
+        background:
+          radial-gradient(circle at 25% 15%, rgba(255, 255, 255, 0.32), transparent 15rem),
+          linear-gradient(135deg, #d71920, #7b0000);
+        color: white;
+      }
+
+      .provider-pill {
+        align-self: flex-start;
+        border-radius: 999px;
+        background: rgba(0, 0, 0, 0.12);
+        color: #333;
+        padding: 9px 13px;
+        font-size: 0.78rem;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        font-weight: 1000;
+      }
+
+      .fiber-pill {
+        background: rgba(255, 255, 255, 0.2);
+        color: white;
+      }
+
+      .mini-house {
+        margin: 18px auto;
+        width: min(330px, 100%);
+      }
+
+      .roof {
+        width: 70%;
+        height: 70px;
+        margin: 0 auto -2px;
+        background: currentColor;
+        opacity: 0.16;
+        clip-path: polygon(50% 0%, 100% 100%, 0% 100%);
+      }
+
+      .house-body {
+        border: 6px solid currentColor;
+        border-radius: 24px;
+        padding: 14px;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        background: rgba(255, 255, 255, 0.12);
+      }
+
+      .device {
+        min-height: 72px;
+        border-radius: 18px;
+        padding: 10px;
+        display: grid;
+        align-content: center;
+        gap: 3px;
+        text-align: center;
+        font-weight: 1000;
+      }
+
+      .device span {
+        font-size: 0.78rem;
+        opacity: 0.72;
+      }
+
+      .device strong {
+        font-size: 1.05rem;
+        letter-spacing: -0.04em;
+      }
+
+      .device.bad {
+        background: rgba(0, 0, 0, 0.12);
+        border: 2px dashed rgba(0, 0, 0, 0.18);
+      }
+
+      .device.good {
+        background: rgba(255, 255, 255, 0.22);
+        box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.25);
+      }
+
+      .home-caption {
+        border-radius: 22px;
+        padding: 14px;
+      }
+
+      .home-caption strong,
+      .home-caption span {
+        display: block;
+      }
+
+      .home-caption strong {
+        font-size: 1rem;
+        letter-spacing: -0.03em;
+      }
+
+      .home-caption span {
+        margin-top: 4px;
+        font-size: 0.85rem;
+        font-weight: 850;
+        opacity: 0.76;
+      }
+
+      .bad-caption {
+        background: rgba(0, 0, 0, 0.08);
+      }
+
+      .good-caption {
+        background: rgba(255, 255, 255, 0.18);
+      }
+
+      .home-vs {
+        align-self: center;
+        border-radius: 999px;
+        background: #171717;
+        color: #fff;
+        font-size: 0.9rem;
+        font-weight: 1000;
+        padding: 13px 10px;
+      }
+
+      .proof-strip {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 18px;
+      }
+
+      .proof-card {
+        padding: 22px;
+        overflow: hidden;
+      }
+
+      .proof-title {
+        color: #d71920;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        font-size: 0.78rem;
+        font-weight: 1000;
+        margin-bottom: 16px;
+      }
+
+      .neighborhood-row {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 7px;
+        margin-bottom: 14px;
+      }
+
+      .neighborhood-row span,
+      .single-home {
+        border-radius: 16px;
+        background: #f0f0f0;
+        color: #555;
+        padding: 12px 8px;
+        text-align: center;
+        font-size: 0.82rem;
+        font-weight: 1000;
+      }
+
+      .choked-line,
+      .direct-line {
+        height: 38px;
+        border-radius: 999px;
+        margin: 15px 0;
+        overflow: hidden;
+      }
+
+      .choked-line {
+        background: #e7e7e7;
+        display: flex;
+        gap: 4px;
+        padding: 8px;
+      }
+
+      .choked-line i {
+        display: block;
+        width: 28%;
+        border-radius: 999px;
+        background: #9f9f9f;
+      }
+
+      .choked-line i:nth-child(2) {
+        width: 18%;
+        opacity: 0.6;
+      }
+
+      .choked-line i:nth-child(3) {
+        width: 12%;
+        opacity: 0.4;
+      }
+
+      .direct-line {
+        background: #fff0f0;
+        padding: 8px;
+      }
+
+      .direct-line i {
+        display: block;
+        height: 100%;
+        width: 100%;
+        border-radius: 999px;
+        background: #d71920;
+        box-shadow: 0 0 24px rgba(215, 25, 32, 0.35);
+      }
+
+      .proof-card strong {
+        display: block;
+        font-size: 1.35rem;
+        letter-spacing: -0.045em;
+      }
+
+      .quick-compare {
+        padding: 18px;
+      }
+
+      .compare-row {
+        display: grid;
+        grid-template-columns: 1.1fr 1fr 1fr;
+        gap: 10px;
+        align-items: center;
+        padding: 12px 0;
+        border-bottom: 1px solid #eeeeee;
+      }
+
+      .compare-row:last-child {
+        border-bottom: 0;
+      }
+
+      .compare-row span {
+        font-weight: 1000;
+        color: #333;
+      }
+
+      .compare-row em,
+      .compare-row strong {
+        border-radius: 999px;
+        padding: 10px 12px;
+        text-align: center;
+        font-style: normal;
+        font-weight: 1000;
+      }
+
+      .compare-row em {
+        background: #eeeeee;
+        color: #666;
+      }
+
+      .compare-row strong {
+        background: #fff0f0;
+        color: #d71920;
+      }
+
+      .compare-row.head {
+        padding-top: 0;
+      }
+
+      .compare-row.head strong {
+        background: transparent;
+        color: #171717;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        font-size: 0.82rem;
+      }
+
+
       @media (max-width: 880px) {
         .sales-shell {
           padding: 10px;
@@ -2714,7 +3077,9 @@ function GlobalStyles() {
         .verizon-discount-module,
         .fiber-visual-stage,
         .big-savings-grid,
-        .symmetry-card {
+        .symmetry-card,
+        .house-comparison,
+        .proof-strip {
           grid-template-columns: 1fr;
         }
 
@@ -2722,6 +3087,14 @@ function GlobalStyles() {
         .contrast-row,
         .big-contrast-visual,
         .comparison-bars.compact {
+          grid-template-columns: 1fr;
+        }
+
+        .home-card {
+          min-height: 320px;
+        }
+
+        .compare-row {
           grid-template-columns: 1fr;
         }
 
