@@ -131,7 +131,7 @@ async function clearDb() {
 }
 
 async function loadCloudState() {
-  if (!supabase) return null;
+  if (!supabase || typeof fetch === "undefined") return null;
 
   const { data, error } = await supabase
     .from("app_state")
@@ -148,7 +148,7 @@ async function loadCloudState() {
 }
 
 async function saveCloudState(value) {
-  if (!supabase) return { ok: false, error: "Missing Supabase env vars" };
+  if (!supabase || typeof fetch === "undefined") return { ok: false, error: "Missing Supabase env vars or fetch unavailable" };
 
   const cleanValue = JSON.parse(JSON.stringify(value));
 
@@ -530,53 +530,58 @@ export default function DDMSharksOps() {
   useEffect(() => {
     let cancelled = false;
 
+    // 2014 iPad failsafe: never let cloud/IndexedDB boot trap the app on the loading screen.
+    const ipadBootFailsafe = setTimeout(() => {
+      if (cancelled) return;
+      setApp((current) => ({ ...DEFAULT_APP, ...(current || {}) }));
+      setSaveStatus("ipad-safe-mode");
+      setCloudError("iPad safe mode: cloud/local boot took too long, so the app opened anyway.");
+      setLoaded(true);
+    }, 2200);
+
     async function boot() {
       try {
         setSaveStatus("loading-cloud");
 
-        const [local, cloud] = await Promise.all([
-          withTimeout(loadDb().catch(() => null), 2500, null),
-          withTimeout(loadCloudState().catch(() => null), 4500, null),
-        ]);
+        const local = await withTimeout(loadDb().catch(() => null), 1200, null);
+        const cloud = await withTimeout(loadCloudState().catch(() => null), 2200, null);
 
         if (cancelled) return;
 
-        if (local?.areas?.length) setLocalCandidate({ ...DEFAULT_APP, ...local });
+        if (local && local.areas && local.areas.length) setLocalCandidate({ ...DEFAULT_APP, ...local });
 
-        if (supabase) {
-          if (cloud && Object.keys(cloud).length) {
-            applyCloudState(cloud, false);
-            setSaveStatus("cloud-live");
-            setCloudError("");
-            setLastCloudLoad(new Date());
-          } else {
-            setApp(DEFAULT_APP);
-            setSaveStatus("cloud-empty");
-            setCloudError("Cloud loaded, but no shared map data is saved yet.");
-          }
-        } else if (local?.areas?.length) {
+        if (supabase && cloud && Object.keys(cloud).length) {
+          applyCloudState(cloud, false);
+          setSaveStatus("cloud-live");
+          setCloudError("");
+          setLastCloudLoad(new Date());
+        } else if (local && local.areas && local.areas.length) {
           setApp({ ...DEFAULT_APP, ...local });
-          setSaveStatus("local-only");
-          setCloudError("Missing Supabase environment variables.");
+          setSaveStatus(supabase ? "cloud-empty-local-backup" : "local-only");
+          setCloudError(supabase ? "Cloud did not answer, so this device opened its local backup." : "Missing Supabase environment variables.");
         } else {
           setApp(DEFAULT_APP);
-          setSaveStatus("local-empty");
-          setCloudError("Missing Supabase environment variables.");
+          setSaveStatus(supabase ? "cloud-empty" : "local-empty");
+          setCloudError(supabase ? "Cloud did not return shared map data yet." : "Missing Supabase environment variables.");
         }
       } catch (err) {
         console.error("Boot failed:", err);
         if (!cancelled) {
           setApp(DEFAULT_APP);
-          setSaveStatus("cloud-error");
-          setCloudError(err?.message || "App boot failed, but the screen was unlocked.");
+          setSaveStatus("ipad-safe-mode");
+          setCloudError((err && err.message) || "App boot failed, but the screen was unlocked.");
         }
       } finally {
+        clearTimeout(ipadBootFailsafe);
         if (!cancelled) setLoaded(true);
       }
     }
 
     boot();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      clearTimeout(ipadBootFailsafe);
+    };
   }, [applyCloudState]);
 
   useEffect(() => {
@@ -643,7 +648,10 @@ export default function DDMSharksOps() {
 
   const selectedTurf = useMemo(() => visibleTurfs.find((t) => t.id === selectedTurfId) || null, [visibleTurfs, selectedTurfId]);
 
-  const allTurfs = useMemo(() => app.areas.flatMap((area) => (area.turfs || []).map((t) => ({ ...t, areaName: area.name, screenshot: area.screenshots?.find((s) => s.id === t.screenshotId) }))), [app.areas]);
+  const allTurfs = useMemo(() => (app.areas || []).reduce((list, area) => {
+    const turfs = (area.turfs || []).map((t) => ({ ...t, areaName: area.name, screenshot: (area.screenshots || []).find((s) => s.id === t.screenshotId) }));
+    return list.concat(turfs);
+  }, []), [app.areas]);
   const teamTurfs = useMemo(() => allTurfs.filter((t) => t.rep === teamRep), [allTurfs, teamRep]);
   const totals = useMemo(() => ({ leads: detections.lead?.length || 0, sold: detections.pink?.length || 0, total: detections.lead?.length || 0 }), [detections]);
   const teamStats = useMemo(() => REPS.map((rep) => {
@@ -836,7 +844,7 @@ export default function DDMSharksOps() {
 
   const autoArea = () => {
     if (!admin || !activeArea) return;
-    const zones = (activeArea.screenshots || []).flatMap((s) => autoSplitScreenshot(s, app.assignments, activeArea.id));
+    const zones = (activeArea.screenshots || []).reduce((list, s) => list.concat(autoSplitScreenshot(s, app.assignments, activeArea.id)), []);
     updateActiveArea((area) => ({ ...area, turfs: [...zones, ...(area.turfs || [])] }));
     setMode("team");
   };
