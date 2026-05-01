@@ -462,6 +462,7 @@ export default function DDMSharksOps() {
   const [teamRep, setTeamRep] = useState("Christian");
   const [showDots, setShowDots] = useState(true);
   const [showTurf, setShowTurf] = useState(true);
+  const [showSold, setShowSold] = useState(false);
   const [polygon, setPolygon] = useState([]);
   const [manualRep, setManualRep] = useState("JJ");
   const [editMode, setEditMode] = useState(false);
@@ -474,6 +475,37 @@ export default function DDMSharksOps() {
   const [lastCloudSave, setLastCloudSave] = useState(null);
   const [localCandidate, setLocalCandidate] = useState(null);
 
+  const applyCloudState = useCallback((cloud, preserveSelection = true) => {
+    if (!cloud || !Object.keys(cloud).length) return;
+
+    setApp((current) => {
+      const next = { ...DEFAULT_APP, ...cloud };
+
+      if (!preserveSelection) return {
+        ...next,
+        activeAreaId: next.activeAreaId || next.areas[0]?.id || null,
+        activeShotId: next.activeShotId || next.areas[0]?.screenshots?.[0]?.id || null,
+      };
+
+      const currentAreaStillExists = next.areas.some((a) => a.id === current.activeAreaId);
+      const activeAreaId = currentAreaStillExists ? current.activeAreaId : next.areas[0]?.id || null;
+      const areaForShot = next.areas.find((a) => a.id === activeAreaId);
+      const currentShotStillExists = areaForShot?.screenshots?.some((shot) => shot.id === current.activeShotId);
+
+      return {
+        ...next,
+        activeAreaId,
+        activeShotId: currentShotStillExists ? current.activeShotId : areaForShot?.screenshots?.[0]?.id || null,
+      };
+    });
+  }, []);
+
+  const cloudSafeApp = useCallback((value) => ({
+    ...value,
+    activeAreaId: null,
+    activeShotId: null,
+  }), []);
+
   useEffect(() => {
     async function boot() {
       setSaveStatus("loading-cloud");
@@ -482,7 +514,7 @@ export default function DDMSharksOps() {
 
       if (supabase) {
         if (cloud && Object.keys(cloud).length) {
-          setApp({ ...DEFAULT_APP, ...cloud });
+          applyCloudState(cloud, false);
           setSaveStatus("cloud-live");
           setLastCloudLoad(new Date());
         } else {
@@ -502,7 +534,7 @@ export default function DDMSharksOps() {
     }
 
     boot();
-  }, []);
+  }, [applyCloudState]);
 
   useEffect(() => {
     if (!loaded) return;
@@ -516,7 +548,7 @@ export default function DDMSharksOps() {
     setSaveStatus("saving-cloud");
     saveTimerRef.current = setTimeout(async () => {
       const version = ++cloudVersionRef.current;
-      const result = await saveCloudState(app);
+      const result = await saveCloudState(cloudSafeApp(app));
       if (version !== cloudVersionRef.current) return;
 
       if (result.ok) {
@@ -532,7 +564,7 @@ export default function DDMSharksOps() {
     return () => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     };
-  }, [app, loaded, admin]);
+  }, [app, loaded, admin, cloudSafeApp]);
 
   useEffect(() => {
     if (!loaded || admin || !supabase) return;
@@ -540,7 +572,7 @@ export default function DDMSharksOps() {
     const pullCloud = async () => {
       const cloud = await loadCloudState();
       if (cloud && Object.keys(cloud).length) {
-        setApp({ ...DEFAULT_APP, ...cloud });
+        applyCloudState(cloud, true);
         setSaveStatus("cloud-live");
         setCloudError("");
         setLastCloudLoad(new Date());
@@ -551,7 +583,7 @@ export default function DDMSharksOps() {
     const interval = setInterval(pullCloud, 2000);
 
     return () => clearInterval(interval);
-  }, [loaded, admin]);
+  }, [loaded, admin, applyCloudState]);
 
   useEffect(() => {
     if (!admin && !["manual", "team"].includes(mode)) setMode("manual");
@@ -570,10 +602,10 @@ export default function DDMSharksOps() {
 
   const allTurfs = useMemo(() => app.areas.flatMap((area) => (area.turfs || []).map((t) => ({ ...t, areaName: area.name, screenshot: area.screenshots?.find((s) => s.id === t.screenshotId) }))), [app.areas]);
   const teamTurfs = useMemo(() => allTurfs.filter((t) => t.rep === teamRep), [allTurfs, teamRep]);
-  const totals = useMemo(() => ({ leads: detections.lead?.length || 0, sold: detections.pink?.length || 0, total: (detections.lead?.length || 0) + (detections.pink?.length || 0) }), [detections]);
+  const totals = useMemo(() => ({ leads: detections.lead?.length || 0, sold: detections.pink?.length || 0, total: detections.lead?.length || 0 }), [detections]);
   const teamStats = useMemo(() => REPS.map((rep) => {
     const mine = allTurfs.filter((t) => t.rep === rep);
-    return { rep, zones: mine.length, leads: mine.reduce((s, t) => s + (t.counts?.yellow || 0), 0), sold: mine.reduce((s, t) => s + (t.counts?.pink || 0), 0), total: mine.reduce((s, t) => s + (t.counts?.total || 0), 0) };
+    return { rep, zones: mine.length, leads: mine.reduce((s, t) => s + (t.counts?.yellow || 0), 0), sold: mine.reduce((s, t) => s + (t.counts?.pink || 0), 0), total: mine.reduce((s, t) => s + (t.counts?.yellow || 0), 0) };
   }), [allTurfs]);
 
   const updateActiveArea = useCallback((fn) => {
@@ -756,7 +788,7 @@ export default function DDMSharksOps() {
 
     setApp(localCandidate);
     setSaveStatus("saving-cloud");
-    const result = await saveCloudState(localCandidate);
+    const result = await saveCloudState(cloudSafeApp(localCandidate));
 
     if (result.ok) {
       setSaveStatus("cloud-saved");
@@ -771,7 +803,7 @@ export default function DDMSharksOps() {
   const refreshFromCloudNow = async () => {
     const cloud = await loadCloudState();
     if (cloud && Object.keys(cloud).length) {
-      setApp({ ...DEFAULT_APP, ...cloud });
+      applyCloudState(cloud, true);
       setSaveStatus("cloud-live");
       setCloudError("");
       setLastCloudLoad(new Date());
@@ -897,8 +929,8 @@ export default function DDMSharksOps() {
     ctx.clearRect(0, 0, overlay.width, overlay.height);
     if (showTurf) visibleTurfs.forEach((t) => drawTurf(ctx, t, editMode && t.id === selectedTurfId));
     if (polygon.length) drawWorkingPolygon(ctx, polygon);
-    if (showDots) DOT_PRESETS.forEach((preset) => (detections[preset.key] || []).forEach((dot) => drawDot(ctx, dot, preset.color)));
-  }, [showTurf, visibleTurfs, polygon, showDots, detections, editMode, selectedTurfId]);
+    if (showDots) DOT_PRESETS.filter((preset) => preset.key === "lead" || showSold).forEach((preset) => (detections[preset.key] || []).forEach((dot) => drawDot(ctx, dot, preset.color)));
+  }, [showTurf, visibleTurfs, polygon, showDots, showSold, detections, editMode, selectedTurfId]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -960,7 +992,7 @@ export default function DDMSharksOps() {
               <AreaDeck areas={app.areas} switchArea={switchArea} setMode={setMode} admin={admin} />
             ) : (
               <>
-                <MapPanel fileRef={fileRef} upload={upload} activeShot={activeShot} canvasRef={canvasRef} overlayRef={overlayRef} canvasClick={canvasClick} mode={mode} showDots={showDots} setShowDots={setShowDots} showTurf={showTurf} setShowTurf={setShowTurf} uploadEnabled={admin} startDrag={startDrag} moveDrag={moveDrag} stopDrag={stopDrag} editMode={editMode} startSwipe={startSwipe} endSwipe={endSwipe} />
+                <MapPanel fileRef={fileRef} upload={upload} activeShot={activeShot} canvasRef={canvasRef} overlayRef={overlayRef} canvasClick={canvasClick} mode={mode} showDots={showDots} setShowDots={setShowDots} showTurf={showTurf} setShowTurf={setShowTurf} showSold={showSold} setShowSold={setShowSold} uploadEnabled={admin} startDrag={startDrag} moveDrag={moveDrag} stopDrag={stopDrag} editMode={editMode} startSwipe={startSwipe} endSwipe={endSwipe} />
                 <TurfLegend turfs={visibleTurfs} />
               </>
             )}
@@ -1106,10 +1138,8 @@ function Board({ totals, activeArea, activeShot, saveStatus, cloudError, lastClo
         </button>
       </div>
 
-      <div className="mt-3 grid grid-cols-3 gap-2">
-        <MiniStat label="Leads" value={totals.leads} className="bg-[#f5c542] text-black" />
-        <MiniStat label="Sold" value={totals.sold} className="bg-[#ef4444] text-white" />
-        <MiniStat label="Total" value={totals.total} className="bg-black text-white" />
+      <div className="mt-3 grid grid-cols-1 gap-2">
+        <MiniStat label="Leads on this screenshot" value={totals.leads} className="bg-[#f5c542] text-black" />
       </div>
 
       <div className="mt-3 rounded-xl border border-[#f5c542]/10 bg-black/25 px-3 py-2 text-xs font-bold text-white/45">
@@ -1223,7 +1253,7 @@ function ViewerNav({ areas, activeArea, activeShot, selectedRep, setSelectedRep,
                 );
               })}
             </div>
-            {selectedRep !== "All" && repStats && <p className="mt-2 text-xs font-bold text-white/45">{selectedRep}: {repStats.leads} leads • {repStats.sold} sold • {repStats.zones} zones</p>}
+            {selectedRep !== "All" && repStats && <p className="mt-2 text-xs font-bold text-white/45">{selectedRep}: {repStats.leads} leads • {repStats.zones} zones</p>}
           </div>
         </div>
       </Panel>
@@ -1248,7 +1278,7 @@ function ManualBox({ manualRep, setManualRep, polygon, clear, saveManual, admin,
         <button disabled={!admin || polygon.length < 3 || editMode} onClick={saveManual} className="rounded-xl bg-black py-3 text-base font-black text-[#f5c542] disabled:opacity-40"><Save className="mr-2 inline h-4 w-4" />Save</button>
         <button onClick={clear} className="rounded-xl bg-white/10 py-3 text-base font-black">Clear</button>
       </div>
-      <p className="mt-2 text-sm font-bold text-white/50">{editMode ? selectedTurf ? `Selected: ${selectedTurf.rep} • ${selectedTurf.counts?.yellow || 0} leads • ${selectedTurf.counts?.pink || 0} sold` : "No zone selected." : `Points: ${polygon.length}`}</p>
+      <p className="mt-2 text-sm font-bold text-white/50">{editMode ? selectedTurf ? `Selected: ${selectedTurf.rep} • ${selectedTurf.counts?.yellow || 0} leads` : "No zone selected." : `Points: ${polygon.length}`}</p>
     </Panel>
   );
 }
@@ -1256,7 +1286,7 @@ function ManualBox({ manualRep, setManualRep, polygon, clear, saveManual, admin,
 function RepFilter({ selectedRep, setSelectedRep }) { return <Panel><h2 className="mb-4 flex items-center text-2xl font-black"><Filter className="mr-2" /> Map Filter</h2><div className="grid grid-cols-2 gap-2">{["All", ...REPS].map((r) => <button key={r} onClick={() => setSelectedRep(r)} className={`rounded-2xl px-4 py-3 text-lg font-black ${selectedRep === r ? "bg-black text-[#f5c542]" : "bg-white/[0.08]"}`}>{r}</button>)}</div></Panel>; }
 function Tuning({ options, setOptions, reCount }) { return <Panel><h2 className="mb-4 flex items-center text-2xl font-black"><Wand2 className="mr-2" /> Tuning</h2><Slider label="Sensitivity" value={options.sensitivity} min={0} max={10} step={1} onChange={(v) => setOptions({ ...options, sensitivity: Number(v) })} /><Slider label="Dot Size" value={options.expectedDotArea} min={60} max={420} step={10} onChange={(v) => setOptions({ ...options, expectedDotArea: Number(v) })} /><button onClick={reCount} className="mt-4 w-full rounded-2xl bg-black py-4 text-xl font-black text-[#f5c542]">Recount</button></Panel>; }
 function Slider({ label, value, min, max, step, onChange }) { return <label className="mb-4 block"><div className="mb-2 flex justify-between text-lg font-black"><span>{label}</span><span>{value}</span></div><input type="range" min={min} max={max} step={step} value={value} onChange={(e) => onChange(e.target.value)} className="w-full accent-[#b8860b]" /></label>; }
-function MapPanel({ fileRef, upload, activeShot, canvasRef, overlayRef, canvasClick, mode, showDots, setShowDots, showTurf, setShowTurf, uploadEnabled, startDrag, moveDrag, stopDrag, editMode, startSwipe, endSwipe }) {
+function MapPanel({ fileRef, upload, activeShot, canvasRef, overlayRef, canvasClick, mode, showDots, setShowDots, showTurf, setShowTurf, showSold, setShowSold, uploadEnabled, startDrag, moveDrag, stopDrag, editMode, startSwipe, endSwipe }) {
   return (
     <div className="rounded-[1.5rem] border border-[#f5c542]/15 bg-[#241a13]/90 p-3 text-[#f7f3ea] shadow-xl shadow-black/30 backdrop-blur-xl sm:p-4">
       <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => upload(e.target.files)} />
@@ -1268,6 +1298,7 @@ function MapPanel({ fileRef, upload, activeShot, canvasRef, overlayRef, canvasCl
         <div className="flex gap-2">
           <button onClick={() => setShowDots(!showDots)} className="rounded-xl bg-black px-3 py-2 text-sm font-black text-[#f5c542]">{showDots ? <EyeOff className="mr-1 inline h-4 w-4" /> : <Eye className="mr-1 inline h-4 w-4" />}Dots</button>
           <button onClick={() => setShowTurf(!showTurf)} className="rounded-xl bg-black px-3 py-2 text-sm font-black text-[#f5c542]">{showTurf ? <EyeOff className="mr-1 inline h-4 w-4" /> : <Eye className="mr-1 inline h-4 w-4" />}Turf</button>
+          <button onClick={() => setShowSold(!showSold)} className={`rounded-xl px-3 py-2 text-xs font-black ${showSold ? "bg-[#7f1d1d] text-white" : "bg-black/60 text-white/35"}`}>Sold {showSold ? "ON" : "OFF"}</button>
         </div>
       </div>
       <div
@@ -1316,14 +1347,10 @@ function TurfLegend({ turfs }) {
               <span className="h-5 w-5 rounded-full border-2 border-black" style={{ backgroundColor: repColor(row.rep) }} />
               <h3 className="text-2xl font-black">{row.rep}</h3>
             </div>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 gap-2">
               <div className="rounded-2xl bg-[#f5c542] p-3 text-center font-black text-black">
                 <p className="text-xs uppercase opacity-70">Leads</p>
                 <p className="text-2xl">{row.leads}</p>
-              </div>
-              <div className="rounded-2xl bg-[#ff4f87] p-3 text-center font-black text-white">
-                <p className="text-xs uppercase opacity-70">Sold</p>
-                <p className="text-2xl">{row.sold}</p>
               </div>
               <div className="rounded-2xl bg-black p-3 text-center font-black text-white">
                 <p className="text-xs uppercase opacity-70">Zones</p>
@@ -1361,7 +1388,7 @@ function TeamView({ teamStats, teamRep, setTeamRep, teamTurfs, admin, deleteTurf
                   <span className="text-base font-black">{r}</span>
                 </div>
                 <p className="text-3xl font-black text-[#f5c542]">{stat.leads}</p>
-                <p className="text-xs font-bold text-white/45">leads • {stat.sold} sold • {stat.zones} zones</p>
+                <p className="text-xs font-bold text-white/45">leads • {stat.zones} zones</p>
               </button>
             );
           })}
@@ -1372,7 +1399,7 @@ function TeamView({ teamStats, teamRep, setTeamRep, teamTurfs, admin, deleteTurf
         <div className="mb-4 flex items-center justify-between gap-3">
           <div>
             <h3 className="text-2xl font-black" style={{ color: repColor(teamRep) }}>{teamRep}'s Turf</h3>
-            <p className="text-sm font-bold text-white/45">{activeStats.leads} leads • {activeStats.sold} sold • {activeStats.zones} zones</p>
+            <p className="text-sm font-bold text-white/45">{activeStats.leads} leads • {activeStats.zones} zones</p>
           </div>
           <button onClick={() => { setSelectedRep(teamRep); setMode("manual"); }} className="rounded-xl bg-black px-4 py-2 text-sm font-black text-[#f5c542]">Map</button>
         </div>
@@ -1389,10 +1416,8 @@ function TeamView({ teamStats, teamRep, setTeamRep, teamTurfs, admin, deleteTurf
                   </div>
                   {admin && <button onClick={() => deleteTurf(t.id)} className="text-red-300"><Trash2 /></button>}
                 </div>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-1 gap-2">
                   <MiniStat label="Leads" value={t.counts?.yellow || 0} className="bg-[#f5c542] text-black" />
-                  <MiniStat label="Sold" value={t.counts?.pink || 0} className="bg-[#ef4444] text-white" />
-                  <MiniStat label="Total" value={t.counts?.total || 0} className="bg-white/10 text-white" />
                 </div>
               </div>
             ))}
