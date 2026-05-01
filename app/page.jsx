@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createClient } from "@supabase/supabase-js";
 import {
   Upload,
   Target,
@@ -30,7 +31,10 @@ const REPS = ["JJ", "Sam", "Zack", "Dylan", "Julian", "Chris", "Christian", "Jac
 const DB_NAME = "ddm-sharks-black-gold-v1";
 const STORE = "state";
 const KEY = "app";
-const TEAM_DATA_URL = "/team-data.json";
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const CLOUD_STATE_ID = "main";
+const supabase = SUPABASE_URL && SUPABASE_ANON_KEY ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 
 const DEFAULT_APP = {
   areas: [],
@@ -105,15 +109,37 @@ async function clearDb() {
   });
 }
 
-async function loadTeamData() {
-  try {
-    const res = await fetch(`${TEAM_DATA_URL}?v=${Date.now()}`, { cache: "no-store" });
-    if (!res.ok) return null;
-    const data = await res.json();
-    return data?.areas ? data : null;
-  } catch {
+async function loadCloudState() {
+  if (!supabase) return null;
+
+  const { data, error } = await supabase
+    .from("app_state")
+    .select("data")
+    .eq("id", CLOUD_STATE_ID)
+    .single();
+
+  if (error) {
+    console.error("Cloud load failed:", error);
     return null;
   }
+
+  return data?.data || null;
+}
+
+async function saveCloudState(value) {
+  if (!supabase) return;
+
+  const cleanValue = JSON.parse(JSON.stringify(value));
+
+  const { error } = await supabase
+    .from("app_state")
+    .upsert({
+      id: CLOUD_STATE_ID,
+      data: cleanValue,
+      updated_at: new Date().toISOString(),
+    });
+
+  if (error) console.error("Cloud save failed:", error);
 }
 
 function rgbToHsv(r, g, b) {
@@ -424,27 +450,74 @@ export default function DDMSharksOps() {
   const [editMode, setEditMode] = useState(false);
   const [selectedTurfId, setSelectedTurfId] = useState(null);
   const [dragState, setDragState] = useState(null);
-  const [sharedLoaded, setSharedLoaded] = useState(false);
+  const [saveStatus, setSaveStatus] = useState("local");
 
   useEffect(() => {
-    Promise.all([loadDb(), loadTeamData()]).then(([saved, shared]) => {
-      const sharedHasAreas = shared?.areas?.length > 0;
-      const savedHasAreas = saved?.areas?.length > 0;
+    async function boot() {
+      const [local, cloud] = await Promise.all([loadDb(), loadCloudState()]);
+      const cloudHasAreas = cloud?.areas?.length > 0;
+      const localHasAreas = local?.areas?.length > 0;
 
-      if (sharedHasAreas) {
-        setApp({ ...DEFAULT_APP, ...shared });
-        setSharedLoaded(true);
-      } else if (savedHasAreas) {
-        setApp({ ...DEFAULT_APP, ...saved });
+      if (cloudHasAreas) {
+        setApp({ ...DEFAULT_APP, ...cloud });
+        setSaveStatus("cloud");
+      } else if (localHasAreas) {
+        const seeded = { ...DEFAULT_APP, ...local };
+        setApp(seeded);
+        setSaveStatus(supabase ? "cloud-seeded" : "local");
+        if (supabase) await saveCloudState(seeded);
+      } else {
+        setSaveStatus(supabase ? "cloud-empty" : "local");
       }
 
       setLoaded(true);
-    });
+    }
+
+    boot();
   }, []);
 
   useEffect(() => {
-    if (loaded && admin) saveDb(app);
+    if (!loaded) return;
+
+    saveDb(app);
+
+    if (admin) {
+      setSaveStatus(supabase ? "saving" : "local");
+      saveCloudState(app).then(() => setSaveStatus(supabase ? "cloud" : "local"));
+    }
   }, [app, loaded, admin]);
+
+  useEffect(() => {
+    if (!loaded || admin || !supabase) return;
+
+    const channel = supabase
+      .channel("app_state_live")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "app_state", filter: `id=eq.${CLOUD_STATE_ID}` },
+        (payload) => {
+          const next = payload?.new?.data;
+          if (next?.areas) {
+            setApp({ ...DEFAULT_APP, ...next });
+            setSaveStatus("cloud-live");
+          }
+        }
+      )
+      .subscribe();
+
+    const interval = setInterval(async () => {
+      const cloud = await loadCloudState();
+      if (cloud?.areas) {
+        setApp({ ...DEFAULT_APP, ...cloud });
+        setSaveStatus("cloud");
+      }
+    }, 5000);
+
+    return () => {
+      clearInterval(interval);
+      supabase.removeChannel(channel);
+    };
+  }, [loaded, admin]);
 
   const activeArea = useMemo(() => app.areas.find((a) => a.id === app.activeAreaId) || app.areas[0] || null, [app]);
   const activeShot = useMemo(() => activeArea?.screenshots?.find((s) => s.id === app.activeShotId) || activeArea?.screenshots?.[0] || null, [activeArea, app.activeShotId]);
@@ -759,7 +832,7 @@ export default function DDMSharksOps() {
         <Header mode={mode} setMode={setMode} admin={admin} />
         <div className="grid gap-5 xl:grid-cols-[440px_1fr]">
           <aside className="space-y-5">
-            <Board totals={totals} activeArea={activeArea} activeShot={activeShot} sharedLoaded={sharedLoaded} />
+            <Board totals={totals} activeArea={activeArea} activeShot={activeShot} saveStatus={saveStatus} />
             <Admin admin={admin} pin={pin} setPin={setPin} unlock={() => { if (pin.trim() === "6969") { setAdmin(true); setPin(""); } }} exportData={exportData} resetData={resetData} compact={!admin} />
             {admin && <Areas areas={app.areas} activeArea={activeArea} activeShot={activeShot} switchArea={switchArea} switchShot={switchShot} newAreaName={newAreaName} setNewAreaName={setNewAreaName} createArea={createArea} deleteArea={deleteArea} admin={admin} />}
             {mode === "upload" && admin && <UploadBox fileRef={fileRef} upload={upload} admin={admin} />}
@@ -903,7 +976,11 @@ function Header({ mode, setMode, admin }) {
 }
 
 function Panel({ children }) { return <div className="rounded-[2rem] border border-black/10 bg-white/85 p-6 shadow-xl shadow-black/10 backdrop-blur-xl">{children}</div>; }
-function Board({ totals, activeArea, activeShot, sharedLoaded }) { return <Panel><div className="flex items-start justify-between"><div><p className="text-xs font-black uppercase tracking-[.22em] text-[#9b7412]">Active Board</p><p className="text-6xl font-black tracking-[-0.06em]">{totals.total}</p><p className="text-sm font-bold text-black/50">{activeArea?.name || "No area"}{activeShot ? ` • ${activeShot.name}` : ""}</p>{sharedLoaded && <p className="mt-2 inline-flex rounded-full bg-[#f5c542] px-3 py-1 text-xs font-black text-black">Team data loaded</p>}</div><div className="rounded-2xl bg-black p-3 text-[#f5c542]"><Crosshair className="h-8 w-8" /></div></div><div className="mt-4 grid grid-cols-2 gap-3"><Stat label="Leads" value={totals.leads} gold /><Stat label="Sold" value={totals.sold} pink /></div></Panel>; }
+function Board({ totals, activeArea, activeShot, saveStatus }) {
+  const cloud = saveStatus?.startsWith("cloud");
+  const label = cloud ? "Live Cloud Sync" : saveStatus === "saving" ? "Saving to Cloud" : "Local Fallback";
+  return <Panel><div className="flex items-start justify-between"><div><p className="text-xs font-black uppercase tracking-[.22em] text-[#9b7412]">Active Board</p><p className="text-6xl font-black tracking-[-0.06em]">{totals.total}</p><p className="text-sm font-bold text-black/50">{activeArea?.name || "No area"}{activeShot ? ` • ${activeShot.name}` : ""}</p><p className={`mt-2 inline-flex rounded-full px-3 py-1 text-xs font-black ${cloud ? "bg-[#f5c542] text-black" : "bg-red-600 text-white"}`}>{label}</p></div><div className="rounded-2xl bg-black p-3 text-[#f5c542]"><Crosshair className="h-8 w-8" /></div></div><div className="mt-4 grid grid-cols-2 gap-3"><Stat label="Leads" value={totals.leads} gold /><Stat label="Sold" value={totals.sold} pink /></div></Panel>;
+}
 function Stat({ label, value, gold, pink }) { return <div className={`${gold ? "bg-[#f5c542] text-black" : pink ? "bg-[#ff4f87] text-white" : "bg-black text-white"} rounded-2xl p-4 shadow-lg`}><p className="text-lg font-black">{label}</p><p className="text-4xl font-black tracking-[-0.05em]">{value}</p></div>; }
 function Admin({ admin, pin, setPin, unlock, exportData, resetData, compact }) {
   return (
