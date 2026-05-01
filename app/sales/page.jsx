@@ -19,7 +19,7 @@ const PIN = "6969";
 const DEFAULT_PROFILE = {
   repName: "",
   defaultAddonIds: ["extender"],
-  useGiftCard: true,
+  useGiftCard: false,
 };
 
 function uid() {
@@ -529,6 +529,8 @@ export default function SalesPage() {
           resetDefaults={resetDefaults}
           saveStatus={saveStatus}
           error={error}
+          profile={profile}
+          setProfile={setProfile}
         />
       ) : (
         <>
@@ -841,57 +843,15 @@ function OptionsStep({
     }
   };
 
-  const toggleDefaultAddon = (id) => {
-    const current = profile.defaultAddonIds || [];
-    const next = current.indexOf(id) !== -1
-      ? current.filter((x) => x !== id)
-      : [...current, id];
-    setProfile({ ...profile, defaultAddonIds: next });
-    setSelectedAddons(next);
-  };
 
   return (
     <section className="options-stage">
       <div className="section-heading">
         <div className="label-red">Options</div>
-        <h1>Default package first. Adjust if needed.</h1>
+        <h1>Options</h1>
         <p>
-          Wi-Fi Extender is the standard default. It can still be turned off when the quote needs to change.
+          Wi-Fi Extender is selected by default. Adjust the quote if needed.
         </p>
-      </div>
-
-      <div className="rep-profile-card">
-        <div>
-          <div className="label-red">Rep setup</div>
-          <h2>{profile.repName ? profile.repName + "'s default" : "Local default package"}</h2>
-          <p>This saves only on this device. Use it to make the plan page match the way you pitch.</p>
-        </div>
-        <label className="rep-name-field">
-          <span>Rep name</span>
-          <input
-            value={profile.repName || ""}
-            placeholder="JJ, Sam, Christian..."
-            onChange={(e) => setProfile({ ...profile, repName: e.target.value })}
-          />
-        </label>
-        <div className="default-toggle-row">
-          {settings.addons
-            .filter((addon) => addon.id === "extender" || addon.id === "security")
-            .map((addon) => {
-              const active = (profile.defaultAddonIds || []).indexOf(addon.id) !== -1;
-              return (
-                <button
-                  key={addon.id}
-                  className={active ? "default-toggle active" : "default-toggle"}
-                  onClick={() => toggleDefaultAddon(addon.id)}
-                >
-                  <span>{active ? "Default on" : "Default off"}</span>
-                  <strong>{addon.name}</strong>
-                  <em>{money(addon.price)}/mo</em>
-                </button>
-              );
-            })}
-        </div>
       </div>
 
       <div className="option-grid">
@@ -970,7 +930,12 @@ function SavingsStep({
     <section className="savings-stage">
       <div className="savings-main">
         <div className="label-red">Savings</div>
-        <h1>{saving ? "The real number is the year." : "Here is the clean comparison."}</h1>
+        <h1>Here is the clean comparison.</h1>
+
+        <div className="monthly-small">
+          <span>Monthly difference</span>
+          <strong>{money(monthlySavings)}</strong>
+        </div>
 
         <div className="big-savings-grid">
           <div className="year-save">
@@ -981,11 +946,6 @@ function SavingsStep({
             <span>3 year savings</span>
             <strong>{money(threeYearSavings)}</strong>
           </div>
-        </div>
-
-        <div className="monthly-small">
-          <span>Monthly difference</span>
-          <strong>{money(monthlySavings)}</strong>
         </div>
 
         <div className="comparison-bars compact">
@@ -1018,7 +978,7 @@ function SavingsStep({
                 className={useGiftCard ? "gift-toggle active" : "gift-toggle"}
                 onClick={() => setProfile({ ...profile, useGiftCard: !useGiftCard })}
               >
-                {useGiftCard ? "Apply to next months" : "Do not apply"}
+                {useGiftCard ? "Gift card applied" : "Apply gift card"}
               </button>
             </div>
 
@@ -1077,7 +1037,7 @@ function Line({ label, value }) {
   );
 }
 
-function AdminEditor({ settings, setSettings, resetDefaults, saveStatus, error }) {
+function AdminEditor({ settings, setSettings, resetDefaults, saveStatus, error, profile, setProfile }) {
   const update = (patch) => setSettings({ ...settings, ...patch });
 
   const updatePlan = (id, patch) => {
@@ -1199,6 +1159,39 @@ function AdminEditor({ settings, setSettings, resetDefaults, saveStatus, error }
           {error ? <small>{error}</small> : null}
         </div>
       </div>
+
+      <AdminSection title="Local rep setup">
+        <div className="admin-card">
+          <p className="admin-note">This saves only on this device. Use it to make the plan page match the default package you personally pitch.</p>
+          <Field
+            label="Rep name"
+            value={(profile && profile.repName) || ""}
+            onChange={(v) => setProfile({ ...profile, repName: v })}
+          />
+          <div className="default-toggle-row settings-defaults">
+            {settings.addons
+              .filter((addon) => addon.id === "extender" || addon.id === "security")
+              .map((addon) => {
+                const active = ((profile && profile.defaultAddonIds) || []).indexOf(addon.id) !== -1;
+                return (
+                  <button
+                    key={addon.id}
+                    className={active ? "default-toggle active" : "default-toggle"}
+                    onClick={() => {
+                      const current = (profile && profile.defaultAddonIds) || [];
+                      const next = active ? current.filter((x) => x !== addon.id) : [...current, addon.id];
+                      setProfile({ ...profile, defaultAddonIds: next });
+                    }}
+                  >
+                    <span>{active ? "Default on" : "Default off"}</span>
+                    <strong>{addon.name}</strong>
+                    <em>{money(addon.price)}/mo</em>
+                  </button>
+                );
+              })}
+          </div>
+        </div>
+      </AdminSection>
 
       <AdminSection title="Header">
         <Field
@@ -2331,6 +2324,13 @@ function GlobalStyles() {
       .admin-section-body {
         display: grid;
         gap: 12px;
+      }
+
+      .admin-note {
+        margin: 0;
+        color: #666;
+        font-weight: 750;
+        line-height: 1.4;
       }
 
       .admin-card {
