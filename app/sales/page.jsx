@@ -340,6 +340,7 @@ export default function SalesPage() {
   const [selectedAddons, setSelectedAddons] = useState(DEFAULT_PROFILE.defaultAddonIds);
   const [profile, setProfile] = useState(DEFAULT_PROFILE);
   const [isVerizonCustomer, setIsVerizonCustomer] = useState(false);
+  const [applyGiftCard, setApplyGiftCard] = useState(false);
   const saveTimerRef = useRef(null);
 
   useEffect(() => {
@@ -596,6 +597,8 @@ export default function SalesPage() {
               monthlySavings={monthlySavings}
               annualSavings={annualSavings}
               threeYearSavings={threeYearSavings}
+              applyGiftCard={applyGiftCard}
+              setApplyGiftCard={setApplyGiftCard}
               setStep={setStep}
             />
           )}
@@ -910,6 +913,8 @@ function SavingsStep({
   monthlySavings,
   annualSavings,
   threeYearSavings,
+  applyGiftCard,
+  setApplyGiftCard,
   setStep,
 }) {
   const saving = monthlySavings > 0;
@@ -3289,6 +3294,32 @@ function GlobalStyles() {
       @media (max-width: 880px) {
         .sales-shell {
           padding: 10px;
+        }
+
+        .topbar > div:first-child {
+          width: 100%;
+          text-align: center;
+        }
+
+        .admin-wrap {
+          width: 100%;
+          justify-content: center;
+        }
+
+        .home-copy,
+        .section-heading,
+        .big-card,
+        .savings-main {
+          text-align: center;
+        }
+
+        .subline {
+          text-align: center;
+        }
+
+        .gift-toggle {
+          flex-direction: column;
+          text-align: center;
         }
 
         .topbar {
