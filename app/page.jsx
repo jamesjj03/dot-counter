@@ -466,6 +466,37 @@ function autoSplitScreenshot(screenshot, assignments, areaId) {
     .filter((zone) => zone.points.length >= 3);
 }
 
+function OldIpadStyleFix() {
+  const css = `
+    html, body, #__next { min-height:100%; margin:0; background:#16110d !important; color:#f7f3ea !important; }
+    body { font-family: Inter, -apple-system, BlinkMacSystemFont, Segoe UI, Arial, sans-serif !important; -webkit-text-size-adjust:100%; }
+    * { box-sizing:border-box; }
+    main { min-height:100vh !important; background:#16110d !important; color:#f7f3ea !important; }
+    button,input,select,textarea { font:inherit; font-size:16px !important; }
+    button { cursor:pointer; border:0; -webkit-appearance:none; appearance:none; }
+    input,select,textarea { border-radius:12px; -webkit-appearance:none; appearance:none; }
+    canvas,img { max-width:100% !important; height:auto !important; }
+    .min-h-screen{min-height:100vh!important}.grid{display:grid!important}.flex{display:flex!important}.inline-flex{display:inline-flex!important}.block{display:block!important}.hidden{display:none!important}
+    .items-center{align-items:center!important}.justify-center{justify-content:center!important}.justify-between{justify-content:space-between!important}.text-center{text-align:center!important}.text-left{text-align:left!important}
+    .relative{position:relative!important}.fixed{position:fixed!important}.absolute{position:absolute!important}.inset-0{top:0;right:0;bottom:0;left:0}.pointer-events-none{pointer-events:none!important}
+    .mx-auto{margin-left:auto!important;margin-right:auto!important}.w-full{width:100%!important}.min-w-0{min-width:0!important}.flex-1{flex:1 1 0%!important}.shrink-0{flex-shrink:0!important}
+    .overflow-hidden{overflow:hidden!important}.overflow-x-auto{overflow-x:auto!important;-webkit-overflow-scrolling:touch}.truncate{overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important}
+    .p-2{padding:.5rem!important}.p-3{padding:.75rem!important}.p-4{padding:1rem!important}.p-5{padding:1.25rem!important}.px-2{padding-left:.5rem!important;padding-right:.5rem!important}.px-3{padding-left:.75rem!important;padding-right:.75rem!important}.px-4{padding-left:1rem!important;padding-right:1rem!important}.py-1{padding-top:.25rem!important;padding-bottom:.25rem!important}.py-2{padding-top:.5rem!important;padding-bottom:.5rem!important}.py-3{padding-top:.75rem!important;padding-bottom:.75rem!important}.py-4{padding-top:1rem!important;padding-bottom:1rem!important}
+    .mb-2{margin-bottom:.5rem!important}.mb-3{margin-bottom:.75rem!important}.mb-4{margin-bottom:1rem!important}.mt-1{margin-top:.25rem!important}.mt-2{margin-top:.5rem!important}.mt-3{margin-top:.75rem!important}.mt-4{margin-top:1rem!important}.mr-1{margin-right:.25rem!important}.mr-2{margin-right:.5rem!important}
+    .gap-2{gap:.5rem!important}.gap-3{gap:.75rem!important}.gap-4{gap:1rem!important}.space-y-2>*+*{margin-top:.5rem!important}.space-y-3>*+*{margin-top:.75rem!important}.space-y-4>*+*{margin-top:1rem!important}
+    .grid-cols-1{grid-template-columns:repeat(1,minmax(0,1fr))!important}.grid-cols-2{grid-template-columns:repeat(2,minmax(0,1fr))!important}.grid-cols-3{grid-template-columns:repeat(3,minmax(0,1fr))!important}.grid-cols-4{grid-template-columns:repeat(4,minmax(0,1fr))!important}
+    .rounded-lg{border-radius:.5rem!important}.rounded-xl{border-radius:.75rem!important}.rounded-2xl{border-radius:1rem!important}.rounded-3xl{border-radius:1.5rem!important}.rounded-full{border-radius:9999px!important}.border{border-width:1px!important;border-style:solid!important}.border-2{border-width:2px!important;border-style:solid!important}
+    .font-bold{font-weight:700!important}.font-black{font-weight:900!important}.uppercase{text-transform:uppercase!important}.text-xs{font-size:.75rem!important;line-height:1rem!important}.text-sm{font-size:.875rem!important;line-height:1.25rem!important}.text-base{font-size:1rem!important;line-height:1.5rem!important}.text-lg{font-size:1.125rem!important;line-height:1.75rem!important}.text-xl{font-size:1.25rem!important;line-height:1.75rem!important}.text-2xl{font-size:1.5rem!important;line-height:2rem!important}.text-3xl{font-size:1.875rem!important;line-height:2.25rem!important}.text-4xl{font-size:2.25rem!important;line-height:2.5rem!important}
+    .text-white{color:#f7f3ea!important}.text-black{color:#050505!important}.bg-black{background:#050505!important}.bg-white{background:#fff!important}.bg-red-700{background:#b91c1c!important}.text-red-300,.text-red-200{color:#fca5a5!important}.text-emerald-300{color:#6ee7b7!important}
+    [class*="bg-[#16110d"]{background:#16110d!important}[class*="bg-[#1b1410"],[class*="bg-[#241a13"],[class*="bg-[#2b2118"],[class*="bg-[#3a2a14"]{background:#241a13!important}[class*="bg-[#f5c542"]{background:#f5c542!important}[class*="text-[#f5c542"]{color:#f5c542!important}[class*="text-[#f7f3ea"]{color:#f7f3ea!important}
+    [class*="bg-white/"],[class*="bg-black/"]{background:rgba(0,0,0,.35)!important}[class*="border-[#f5c542"]{border-color:rgba(245,197,66,.35)!important}.shadow-xl,.shadow-2xl,.shadow-lg{box-shadow:0 12px 30px rgba(0,0,0,.35)!important}.outline-none{outline:none!important}
+    @media(min-width:640px){.sm\\:grid-cols-5{grid-template-columns:repeat(5,minmax(0,1fr))!important}.sm\\:grid-cols-7{grid-template-columns:repeat(7,minmax(0,1fr))!important}.sm\\:p-4{padding:1rem!important}.sm\\:p-5{padding:1.25rem!important}.sm\\:px-6{padding-left:1.5rem!important;padding-right:1.5rem!important}.sm\\:text-5xl{font-size:3rem!important;line-height:1!important}}
+    @media(min-width:1024px){.lg\\:grid-cols-3{grid-template-columns:repeat(3,minmax(0,1fr))!important}.lg\\:px-8{padding-left:2rem!important;padding-right:2rem!important}.lg\\:text-6xl{font-size:3.75rem!important;line-height:1!important}}
+    @media(min-width:1280px){.xl\\:sticky{position:sticky!important}.xl\\:top-4{top:1rem!important}.xl\\:self-start{align-self:start!important}}
+  `;
+  return <style dangerouslySetInnerHTML={{ __html: css }} />;
+}
+
 export default function DDMSharksOps() {
   const canvasRef = useRef(null);
   const overlayRef = useRef(null);
@@ -1100,6 +1131,7 @@ export default function DDMSharksOps() {
 
   return (
     <main className="min-h-screen bg-[#16110d] text-[#f7f3ea]" style={{ fontFamily: "Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif" }}>
+      <OldIpadStyleFix />
       <SharkBg />
       <section className="relative mx-auto max-w-[1540px] px-3 py-4 sm:px-6 lg:px-8">
         <Header mode={mode} setMode={setMode} admin={admin} />
