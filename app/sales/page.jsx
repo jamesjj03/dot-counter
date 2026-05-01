@@ -101,7 +101,7 @@ const DEFAULT_SETTINGS = {
   billingSchedule: {
     enabled: true,
     title: "First five months",
-    note: "First two months show $0. Day 61 shows add-ons only. Gift card can be applied to months 4 and 5.",
+    note: "Months 1 and 2 show $0. Month 3 shows add-ons only. Gift card can be applied to months 4 and 5.",
     giftCardAmount: 100,
     giftCardLabel: "$100 Visa gift card",
   },
@@ -920,7 +920,7 @@ function SavingsStep({
   const saving = monthlySavings > 0;
   const schedule = settings.billingSchedule || {};
   const giftCardAmount = cleanNumber(schedule.giftCardAmount || 0);
-  const useGiftCard = !!profile.useGiftCard;
+  const useGiftCard = !!applyGiftCard;
   const promoAddonTotal = addonTotal;
   const month4BeforeGift = Math.max(0, ourMonthly);
   const giftAppliedMonth4 = useGiftCard ? Math.min(giftCardAmount, month4BeforeGift) : 0;
@@ -980,17 +980,19 @@ function SavingsStep({
                 <strong>Arrives after Month 3</strong>
               </div>
               <button
+                type="button"
                 className={useGiftCard ? "gift-toggle active" : "gift-toggle"}
-                onClick={() => setProfile({ ...profile, useGiftCard: !useGiftCard })}
+                onClick={() => setApplyGiftCard(!applyGiftCard)}
               >
-                {useGiftCard ? "Gift card applied" : "Apply gift card"}
+                <span className="gift-check">{useGiftCard ? "✓" : ""}</span>
+                <span>{useGiftCard ? "Gift card applied" : "Apply gift card"}</span>
               </button>
             </div>
 
             <div className="billing-months new-billing-months">
               <BillingMonth label="Month 1" amount={0} note="Promo month" />
               <BillingMonth label="Month 2" amount={0} note="Promo month" />
-              <BillingMonth label="Day 61" amount={promoAddonTotal} note="Add-ons only" />
+              <BillingMonth label="Month 3" amount={promoAddonTotal} note="Add-ons only" />
               <BillingMonth label="Month 4" amount={month4AfterGift} original={useGiftCard ? month4BeforeGift : null} note={useGiftCard ? "Gift card applied" : "Normal quote"} />
               <BillingMonth label="Month 5" amount={month5AfterGift} original={useGiftCard && giftAppliedMonth5 ? month5BeforeGift : null} note={useGiftCard && giftAppliedMonth5 ? "Gift card applied" : "Normal quote"} />
             </div>
@@ -3289,6 +3291,39 @@ function GlobalStyles() {
         font-size: 0.95rem;
         letter-spacing: -0.02em;
         font-style: normal;
+      }
+
+
+      .gift-toggle {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        border: 2px solid rgba(215, 25, 32, 0.22);
+        border-radius: 18px;
+        background: white;
+        color: #171717;
+        padding: 14px 16px;
+        font-weight: 1000;
+        min-width: 210px;
+      }
+
+      .gift-toggle.active {
+        background: #d71920;
+        border-color: #d71920;
+        color: white;
+      }
+
+      .gift-check {
+        width: 24px;
+        height: 24px;
+        border-radius: 7px;
+        border: 2px solid currentColor;
+        display: inline-grid;
+        place-items: center;
+        font-size: 16px;
+        line-height: 1;
+        font-weight: 1000;
       }
 
       @media (max-width: 880px) {
