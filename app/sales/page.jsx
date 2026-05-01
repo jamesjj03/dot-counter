@@ -5,98 +5,23 @@ import { createClient } from "@supabase/supabase-js";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-const supabase = SUPABASE_URL && SUPABASE_ANON_KEY ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+const supabase =
+  SUPABASE_URL && SUPABASE_ANON_KEY
+    ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+    : null;
 
-const CLOUD_STATE_ID = "frontier-sales-page";
-const ADMIN_PIN = "6969";
-
-const DEFAULT_SETTINGS = {
-  title: "Fiber Internet",
-  headerLine: "Official quote builder",
-  heroEyebrow: "Frontier Fiber",
-  heroHeadline: "Internet built for the whole house.",
-  heroSubline:
-    "A cleaner connection, stronger speed, and a quote you can actually see before switching.",
-  legalNote:
-    "Quote helper only. Address availability, taxes, fees, installation, and promotions must be confirmed.",
-  plans: [
-    {
-      id: "fiber-500",
-      name: "Fiber 500",
-      speed: "500 Mbps",
-      price: 34.99,
-      badge: "Most common switch",
-      details:
-        "Great for everyday streaming, phones, laptops, school, and work-from-home use.",
-    },
-    {
-      id: "fiber-1-gig",
-      name: "Fiber 1 Gig",
-      speed: "1 Gig",
-      price: 49.99,
-      badge: "Best value",
-      details:
-        "Built for heavier homes with gaming, 4K streaming, smart devices, and multiple people online.",
-    },
-    {
-      id: "fiber-2-gig",
-      name: "Fiber 2 Gig",
-      speed: "2 Gig",
-      price: 64.99,
-      badge: "Power home",
-      details:
-        "For homes that want maximum headroom and the fastest available experience.",
-    },
-    {
-      id: "fiber-5-gig",
-      name: "Fiber 5 Gig",
-      speed: "5 Gig",
-      price: 89.99,
-      badge: "Maximum headroom",
-      details:
-        "Built for heavy gaming, large downloads, big households, creators, and homes that want serious speed overhead.",
-    },
-    {
-      id: "fiber-7-gig",
-      name: "Fiber 7 Gig",
-      speed: "7 Gig",
-      price: 109.99,
-      badge: "Top tier",
-      details:
-        "The biggest available option for power users, connected homes, and people who want the fastest plan on the table.",
-    },
-  ],
-  addons: [
-    {
-      id: "landline",
-      name: "Landline",
-      price: 25,
-      details: "Keep a home phone option if needed.",
-    },
-    {
-      id: "youtube-tv",
-      name: "YouTube TV",
-      price: 82.99,
-      details: "Live TV option without traditional cable boxes.",
-    },
-    {
-      id: "wifi-extender",
-      name: "Wi-Fi Extender",
-      price: 10,
-      details: "Helps coverage in larger homes or tougher layouts.",
-    },
-    {
-      id: "wifi-security",
-      name: "Wi-Fi Security",
-      price: 6,
-      details: "Extra network protection for safer browsing and connected devices.",
-    },
-  ],
-};
+const CLOUD_TABLE = "app_state";
+const CLOUD_ID = "sales_page_settings_v2";
+const LOCAL_KEY = "frontier_sales_page_settings_v2";
+const PIN = "6969";
 
 function uid() {
   try {
-    if (typeof window !== "undefined" && window.crypto && typeof window.crypto.randomUUID === "function") {
+    if (
+      typeof window !== "undefined" &&
+      window.crypto &&
+      typeof window.crypto.randomUUID === "function"
+    ) {
       return window.crypto.randomUUID();
     }
   } catch (e) {}
@@ -105,552 +30,2312 @@ function uid() {
 
 function money(value) {
   const n = Number(value || 0);
-  return n.toLocaleString(undefined, { style: "currency", currency: "USD" });
+  return "$" + n.toFixed(2);
 }
 
-function safeNumber(value) {
+function cleanNumber(value) {
   const n = Number(value);
   return Number.isFinite(n) ? n : 0;
 }
 
+function parseMoneyInput(value) {
+  const raw = String(value || "").replace(/[^0-9.]/g, "");
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function safeJsonClone(value) {
+  return JSON.parse(JSON.stringify(value));
+}
+
+const DEFAULT_SETTINGS = {
+  title: "Fiber Internet",
+  eyebrow: "Quote helper",
+  subline: "Built for faster, steadier, cleaner home internet.",
+  primaryPlanId: "gig",
+  fiberPoints: [
+    {
+      title: "Faster where it matters",
+      metric: "up to multi-gig speeds",
+      body:
+        "Fiber gives the home more headroom for streaming, gaming, school, work, smart TVs, cameras, and everyone being online at once.",
+    },
+    {
+      title: "More reliable connection",
+      metric: "built on fiber lines",
+      body:
+        "Fiber is designed for a steadier connection than older cable-style internet that can slow down when the neighborhood gets busy.",
+    },
+    {
+      title: "Symmetrical power",
+      metric: "fast uploads + downloads",
+      body:
+        "Fiber can send and receive data fast, which helps video calls, uploads, cloud backups, gaming, work files, and smart-home devices.",
+    },
+  ],
+  contrastCards: [
+    {
+      oldTitle: "Old cable/coax internet",
+      oldBody:
+        "Shared neighborhood capacity, slower uploads, and more slowdown when everyone nearby is streaming at the same time.",
+      newTitle: "Fiber connection",
+      newBody:
+        "A direct fiber-based connection with more bandwidth, stronger uploads, and better performance for modern homes.",
+    },
+  ],
+  plans: [
+    {
+      id: "fivehundred",
+      name: "Fiber 500",
+      speed: "500 Mbps",
+      price: 34.99,
+      badge: "Starter option",
+      description:
+        "A lower-cost option for lighter homes. Good for everyday browsing, phones, laptops, and simple streaming.",
+      featured: false,
+    },
+    {
+      id: "gig",
+      name: "Fiber 1 Gig",
+      speed: "1 Gig",
+      price: 49.99,
+      badge: "Most common • best value",
+      description:
+        "The main recommendation for most homes. Built for streaming, gaming, smart devices, work-from-home, and multiple people online without feeling squeezed.",
+      featured: true,
+    },
+    {
+      id: "twogig",
+      name: "Fiber 2 Gig",
+      speed: "2 Gig",
+      price: 64.99,
+      badge: "Power home",
+      description:
+        "For heavier homes that want extra headroom for gaming, 4K streaming, smart devices, work, and larger households.",
+      featured: false,
+    },
+    {
+      id: "fivegig",
+      name: "Fiber 5 Gig",
+      speed: "5 Gig",
+      price: 89.99,
+      badge: "Maximum headroom",
+      description:
+        "For homes that want serious speed capacity, heavy downloads, high-end gaming, home offices, and lots of devices running at once.",
+      featured: false,
+    },
+    {
+      id: "sevengig",
+      name: "Fiber 7 Gig",
+      speed: "7 Gig",
+      price: 109.99,
+      badge: "Top-tier option",
+      description:
+        "The fastest available tier for customers who want the biggest connection, the most headroom, and the strongest future-proof setup.",
+      featured: false,
+    },
+  ],
+  addons: [
+    {
+      id: "landline",
+      name: "Landline",
+      price: 25,
+      description: "Keep a home phone option if needed.",
+      category: "Home",
+    },
+    {
+      id: "youtube",
+      name: "YouTube TV",
+      price: 82.99,
+      description: "Live TV option without traditional cable boxes.",
+      category: "TV",
+    },
+    {
+      id: "extender",
+      name: "Wi-Fi Extender",
+      price: 10,
+      description: "Helps coverage in larger homes or tougher layouts.",
+      category: "Wi-Fi",
+    },
+    {
+      id: "security",
+      name: "Wi-Fi Security",
+      price: 6,
+      description:
+        "Extra network security protection for connected devices in the home.",
+      category: "Wi-Fi",
+    },
+  ],
+  phone: {
+    enabled: true,
+    title: "Mobile phone plans",
+    lineLabel: "Phone lines",
+    basePricePerLine: 29.99,
+    verizonDiscountPerLine: 10,
+    verizonDiscountLabel: "Verizon customer savings",
+    description:
+      "Add mobile lines to the quote and show the extra monthly savings if the customer qualifies for the Verizon-linked discount.",
+    plans: [
+      {
+        id: "mobile-basic",
+        name: "Mobile Line",
+        price: 29.99,
+        description:
+          "Estimated monthly phone line option. Update this once Sam or Zach confirms the exact mobile pricing.",
+      },
+    ],
+  },
+  disclaimer:
+    "Quote helper only. Address availability, taxes, fees, installation, autopay, promotions, mobile discounts, and final order details must be confirmed.",
+};
+
 async function loadCloudSettings() {
   if (!supabase) return null;
-  const { data, error } = await supabase
-    .from("app_state")
-    .select("data")
-    .eq("id", CLOUD_STATE_ID)
-    .single();
-  if (error) return null;
-  return data && data.data ? data.data : null;
+  try {
+    const res = await supabase
+      .from(CLOUD_TABLE)
+      .select("data")
+      .eq("id", CLOUD_ID)
+      .single();
+    if (res.error) return null;
+    return res.data && res.data.data ? res.data.data : null;
+  } catch (e) {
+    return null;
+  }
 }
 
 async function saveCloudSettings(settings) {
-  if (!supabase) return { ok: false, error: "Missing Supabase environment variables." };
-  const clean = JSON.parse(JSON.stringify(settings));
-  const { error } = await supabase.from("app_state").upsert({
-    id: CLOUD_STATE_ID,
-    data: clean,
-    updated_at: new Date().toISOString(),
-  });
-  if (error) return { ok: false, error: error.message || "Cloud save failed." };
-  return { ok: true };
+  if (!supabase) {
+    return { ok: false, error: "Missing Supabase environment variables." };
+  }
+
+  try {
+    const res = await supabase.from(CLOUD_TABLE).upsert({
+      id: CLOUD_ID,
+      data: safeJsonClone(settings),
+      updated_at: new Date().toISOString(),
+    });
+
+    if (res.error) {
+      return { ok: false, error: res.error.message || "Cloud save failed." };
+    }
+
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e && e.message ? e.message : "Cloud save failed." };
+  }
 }
 
-function mergeSettings(cloud) {
-  if (!cloud || typeof cloud !== "object") return DEFAULT_SETTINGS;
-  return {
+function loadLocalSettings() {
+  try {
+    if (typeof window === "undefined") return null;
+    const raw = window.localStorage.getItem(LOCAL_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function saveLocalSettings(settings) {
+  try {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(LOCAL_KEY, JSON.stringify(settings));
+  } catch (e) {}
+}
+
+function mergeSettings(incoming) {
+  const merged = {
     ...DEFAULT_SETTINGS,
-    ...cloud,
-    plans: Array.isArray(cloud.plans) && cloud.plans.length ? cloud.plans : DEFAULT_SETTINGS.plans,
-    addons: Array.isArray(cloud.addons) ? cloud.addons : DEFAULT_SETTINGS.addons,
+    ...(incoming || {}),
+    phone: {
+      ...DEFAULT_SETTINGS.phone,
+      ...((incoming && incoming.phone) || {}),
+      plans:
+        incoming && incoming.phone && Array.isArray(incoming.phone.plans)
+          ? incoming.phone.plans
+          : DEFAULT_SETTINGS.phone.plans,
+    },
+    plans:
+      incoming && Array.isArray(incoming.plans)
+        ? incoming.plans
+        : DEFAULT_SETTINGS.plans,
+    addons:
+      incoming && Array.isArray(incoming.addons)
+        ? incoming.addons
+        : DEFAULT_SETTINGS.addons,
+    fiberPoints:
+      incoming && Array.isArray(incoming.fiberPoints)
+        ? incoming.fiberPoints
+        : DEFAULT_SETTINGS.fiberPoints,
+    contrastCards:
+      incoming && Array.isArray(incoming.contrastCards)
+        ? incoming.contrastCards
+        : DEFAULT_SETTINGS.contrastCards,
   };
+
+  if (!merged.primaryPlanId && merged.plans[0]) {
+    merged.primaryPlanId = merged.plans[0].id;
+  }
+
+  return merged;
 }
 
-export default function FrontierSalesPage() {
-  const saveTimer = useRef(null);
+export default function SalesPage() {
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
   const [loaded, setLoaded] = useState(false);
-  const [admin, setAdmin] = useState(false);
+  const [adminOpen, setAdminOpen] = useState(false);
+  const [adminUnlocked, setAdminUnlocked] = useState(false);
   const [pin, setPin] = useState("");
-  const [step, setStep] = useState("fiber");
-  const [currentBill, setCurrentBill] = useState(100);
-  const [selectedPlanId, setSelectedPlanId] = useState(DEFAULT_SETTINGS.plans[1].id);
-  const [selectedAddons, setSelectedAddons] = useState([]);
   const [saveStatus, setSaveStatus] = useState("loading");
   const [error, setError] = useState("");
+  const [step, setStep] = useState("fiber");
+  const [currentBill, setCurrentBill] = useState("");
+  const [selectedPlanId, setSelectedPlanId] = useState(DEFAULT_SETTINGS.primaryPlanId);
+  const [selectedAddons, setSelectedAddons] = useState([]);
+  const [phoneLines, setPhoneLines] = useState(0);
+  const [isVerizonCustomer, setIsVerizonCustomer] = useState(false);
+  const saveTimerRef = useRef(null);
 
   useEffect(() => {
-    let dead = false;
+    let cancelled = false;
+
     async function boot() {
-      setSaveStatus("loading");
-      const timeout = new Promise((resolve) => setTimeout(() => resolve(null), 2800));
-      const cloud = await Promise.race([loadCloudSettings().catch(() => null), timeout]);
-      if (dead) return;
-      const next = mergeSettings(cloud);
-      setSettings(next);
-      setSelectedPlanId(next.plans[1]?.id || next.plans[0]?.id || "");
-      setLoaded(true);
-      setSaveStatus(supabase ? (cloud ? "cloud live" : "cloud empty") : "local only");
-      if (!supabase) setError("Cloud save is off because Supabase env vars are missing.");
+      const local = loadLocalSettings();
+      if (local && !cancelled) {
+        const mergedLocal = mergeSettings(local);
+        setSettings(mergedLocal);
+        setSelectedPlanId(mergedLocal.primaryPlanId || mergedLocal.plans[0]?.id || "");
+        setSaveStatus("local loaded");
+      }
+
+      const cloud = await loadCloudSettings();
+      if (!cancelled && cloud) {
+        const mergedCloud = mergeSettings(cloud);
+        setSettings(mergedCloud);
+        setSelectedPlanId(mergedCloud.primaryPlanId || mergedCloud.plans[0]?.id || "");
+        saveLocalSettings(mergedCloud);
+        setSaveStatus("cloud live");
+      } else if (!cancelled && !cloud) {
+        setSaveStatus(supabase ? "cloud empty" : "local only");
+      }
+
+      if (!cancelled) setLoaded(true);
     }
+
     boot();
+
+    const failsafe = setTimeout(() => {
+      if (!cancelled) {
+        setLoaded(true);
+        setSaveStatus((old) => (old === "loading" ? "safe mode" : old));
+      }
+    }, 2500);
+
     return () => {
-      dead = true;
+      cancelled = true;
+      clearTimeout(failsafe);
     };
   }, []);
 
   useEffect(() => {
-    if (!loaded || !admin) return;
-    if (saveTimer.current) clearTimeout(saveTimer.current);
-    setSaveStatus("saving");
-    saveTimer.current = setTimeout(async () => {
+    saveLocalSettings(settings);
+
+    if (!adminUnlocked) return;
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+
+    setSaveStatus("saving...");
+    saveTimerRef.current = setTimeout(async () => {
       const result = await saveCloudSettings(settings);
       if (result.ok) {
-        setSaveStatus("saved to cloud");
+        setSaveStatus("cloud saved");
         setError("");
       } else {
-        setSaveStatus("save failed");
+        setSaveStatus("local saved");
         setError(result.error || "Cloud save failed.");
       }
     }, 700);
-    return () => saveTimer.current && clearTimeout(saveTimer.current);
-  }, [settings, loaded, admin]);
 
-  const selectedPlan = useMemo(
-    () => settings.plans.find((p) => p.id === selectedPlanId) || settings.plans[0] || null,
-    [settings.plans, selectedPlanId]
-  );
-
-  const chosenAddons = useMemo(
-    () => settings.addons.filter((a) => selectedAddons.indexOf(a.id) !== -1),
-    [settings.addons, selectedAddons]
-  );
-
-  const quoteTotal = useMemo(() => {
-    const plan = selectedPlan ? safeNumber(selectedPlan.price) : 0;
-    const addons = chosenAddons.reduce((s, a) => s + safeNumber(a.price), 0);
-    return plan + addons;
-  }, [selectedPlan, chosenAddons]);
-
-  const savings = useMemo(() => {
-    const monthly = safeNumber(currentBill) - quoteTotal;
-    return {
-      monthly,
-      yearly: monthly * 12,
-      threeYear: monthly * 36,
+    return () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     };
-  }, [currentBill, quoteTotal]);
+  }, [settings, adminUnlocked]);
 
-  function updatePlan(id, patch) {
-    setSettings((old) => ({
-      ...old,
-      plans: old.plans.map((p) => (p.id === id ? { ...p, ...patch } : p)),
-    }));
-  }
+  const selectedPlan = useMemo(() => {
+    return (
+      settings.plans.find((plan) => plan.id === selectedPlanId) ||
+      settings.plans.find((plan) => plan.id === settings.primaryPlanId) ||
+      settings.plans[0] ||
+      null
+    );
+  }, [settings.plans, settings.primaryPlanId, selectedPlanId]);
 
-  function updateAddon(id, patch) {
-    setSettings((old) => ({
-      ...old,
-      addons: old.addons.map((a) => (a.id === id ? { ...a, ...patch } : a)),
-    }));
-  }
+  const addonTotal = useMemo(() => {
+    return settings.addons
+      .filter((addon) => selectedAddons.indexOf(addon.id) !== -1)
+      .reduce((sum, addon) => sum + cleanNumber(addon.price), 0);
+  }, [settings.addons, selectedAddons]);
 
-  function addPlan() {
-    const id = uid();
-    setSettings((old) => ({
-      ...old,
-      plans: [
-        ...old.plans,
-        { id, name: "New Fiber Plan", speed: "Speed", price: 0, badge: "Option", details: "Plan details." },
-      ],
-    }));
-    setSelectedPlanId(id);
-  }
+  const phonePricePerLine =
+    settings.phone.plans && settings.phone.plans[0]
+      ? cleanNumber(settings.phone.plans[0].price)
+      : cleanNumber(settings.phone.basePricePerLine);
 
-  function removePlan(id) {
-    setSettings((old) => {
-      const plans = old.plans.filter((p) => p.id !== id);
-      return { ...old, plans };
-    });
-    if (selectedPlanId === id) setSelectedPlanId(settings.plans[0]?.id || "");
-  }
+  const phoneSubtotal = phoneLines * phonePricePerLine;
+  const verizonSavings =
+    isVerizonCustomer && phoneLines > 0
+      ? phoneLines * cleanNumber(settings.phone.verizonDiscountPerLine)
+      : 0;
 
-  function addAddon() {
-    setSettings((old) => ({
-      ...old,
-      addons: [...old.addons, { id: uid(), name: "New Add-on", price: 0, details: "Add-on details." }],
-    }));
-  }
+  const phoneFinal = Math.max(0, phoneSubtotal - verizonSavings);
+  const ourMonthly =
+    cleanNumber(selectedPlan && selectedPlan.price) + addonTotal + phoneFinal;
+  const currentMonthly = parseMoneyInput(currentBill);
+  const monthlySavings = currentMonthly > 0 ? currentMonthly - ourMonthly : 0;
+  const annualSavings = monthlySavings * 12;
+  const threeYearSavings = monthlySavings * 36;
 
-  function removeAddon(id) {
-    setSettings((old) => ({ ...old, addons: old.addons.filter((a) => a.id !== id) }));
-    setSelectedAddons((old) => old.filter((x) => x !== id));
-  }
-
-  function toggleAddon(id) {
-    setSelectedAddons((old) => (old.indexOf(id) === -1 ? [...old, id] : old.filter((x) => x !== id)));
-  }
-
-  function unlock() {
-    if (pin.trim() === ADMIN_PIN) {
-      setAdmin(true);
+  const unlockAdmin = () => {
+    if (pin.trim() === PIN) {
+      setAdminUnlocked(true);
+      setAdminOpen(true);
       setPin("");
-      setStep("pricing");
+      setError("");
+      return;
     }
-  }
+    setError("Wrong PIN.");
+  };
+
+  const resetDefaults = () => {
+    const fresh = safeJsonClone(DEFAULT_SETTINGS);
+    setSettings(fresh);
+    setSelectedPlanId(fresh.primaryPlanId);
+    setSelectedAddons([]);
+    setPhoneLines(0);
+    setIsVerizonCustomer(false);
+  };
 
   if (!loaded) {
     return (
-      <main className="sales-page">
-        <Style />
-        <div className="loading-card">Loading quote builder...</div>
+      <main className="sales-shell">
+        <GlobalStyles />
+        <section className="loader-card">
+          <div className="brand-mark">Fiber Internet</div>
+          <p>Loading quote helper...</p>
+        </section>
       </main>
     );
   }
 
   return (
-    <main className="sales-page">
-      <Style />
+    <main className="sales-shell">
+      <GlobalStyles />
+
       <header className="topbar">
         <div>
-          <p className="eyebrow">{settings.heroEyebrow}</p>
-          <h1>{settings.title}</h1>
-          <p>{settings.headerLine}</p>
+          <div className="micro">{settings.eyebrow}</div>
+          <div className="logo-text">{settings.title}</div>
+          <p className="subline">{settings.subline}</p>
         </div>
-        <div className="admin-box">
-          {admin ? (
-            <button className="ghost" onClick={() => setStep(step === "pricing" ? "fiber" : "pricing")}>{step === "pricing" ? "Done" : "Pricing"}</button>
+
+        <div className="admin-wrap">
+          {!adminOpen ? (
+            <button className="ghost-admin" onClick={() => setAdminOpen(true)}>
+              Settings
+            </button>
+          ) : !adminUnlocked ? (
+            <div className="pin-box">
+              <input
+                value={pin}
+                onChange={(e) => setPin(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && unlockAdmin()}
+                placeholder="PIN"
+                inputMode="numeric"
+              />
+              <button onClick={unlockAdmin}>Unlock</button>
+              <button className="plain" onClick={() => setAdminOpen(false)}>
+                Hide
+              </button>
+            </div>
           ) : (
-            <>
-              <input value={pin} onChange={(e) => setPin(e.target.value)} onKeyDown={(e) => e.key === "Enter" && unlock()} placeholder="PIN" />
-              <button onClick={unlock}>Unlock</button>
-            </>
+            <div className="admin-status">
+              <span>Pricing unlocked</span>
+              <button onClick={() => setAdminOpen(!adminOpen)}>
+                {adminOpen ? "Done" : "Settings"}
+              </button>
+            </div>
           )}
         </div>
       </header>
 
-      <nav className="steps">
-        {[
-          ["fiber", "1. Fiber"],
-          ["bill", "2. Bill"],
-          ["plans", "3. Plans"],
-          ["options", "4. Options"],
-          ["savings", "5. Savings"],
-        ].map(([key, label]) => (
-          <button key={key} onClick={() => setStep(key)} className={step === key ? "active" : ""}>{label}</button>
-        ))}
-        {admin && <button onClick={() => setStep("pricing")} className={step === "pricing" ? "active admin-step" : "admin-step"}>Pricing</button>}
-      </nav>
+      {adminUnlocked && adminOpen ? (
+        <AdminEditor
+          settings={settings}
+          setSettings={(next) => {
+            const merged = mergeSettings(next);
+            setSettings(merged);
+            if (!merged.plans.find((p) => p.id === selectedPlanId)) {
+              setSelectedPlanId(merged.primaryPlanId || merged.plans[0]?.id || "");
+            }
+          }}
+          resetDefaults={resetDefaults}
+          saveStatus={saveStatus}
+          error={error}
+        />
+      ) : (
+        <>
+          <nav className="flow-nav">
+            <FlowButton step="fiber" active={step} setStep={setStep} label="1. Fiber" />
+            <FlowButton step="bill" active={step} setStep={setStep} label="2. Bill" />
+            <FlowButton step="plans" active={step} setStep={setStep} label="3. Plans" />
+            <FlowButton step="options" active={step} setStep={setStep} label="4. Options" />
+            <FlowButton step="savings" active={step} setStep={setStep} label="5. Savings" />
+          </nav>
 
-      {error && <div className="notice bad">{error}</div>}
-      {admin && <div className="notice">Pricing unlocked • {saveStatus}</div>}
+          {step === "fiber" && (
+            <FiberStep
+              settings={settings}
+              setStep={setStep}
+            />
+          )}
 
-      {step === "fiber" && (
-        <section className="hero-grid">
-          <div className="hero-card">
-            <p className="eyebrow red">Fiber vs cable</p>
-            <h2>{settings.heroHeadline}</h2>
-            <p>{settings.heroSubline}</p>
-            <div className="visual-row">
-              <ConnectionCard title="Fiber" subtitle="Dedicated light-based line" active />
-              <div className="versus">VS</div>
-              <ConnectionCard title="Coax" subtitle="Shared neighborhood cable" />
-            </div>
-            <button className="primary" onClick={() => setStep("bill")}>Start quote</button>
-          </div>
+          {step === "bill" && (
+            <BillStep
+              currentBill={currentBill}
+              setCurrentBill={setCurrentBill}
+              setStep={setStep}
+            />
+          )}
 
-          <div className="fiber-visual">
-            <div className="house big">Home</div>
-            <div className="fiber-line"><span /><span /><span /></div>
-            <div className="node">Fiber network</div>
-            <div className="visual-copy">
-              <h3>Upload. Download. Same clean pipe.</h3>
-              <p>Fiber is built to move data both ways with less drag, which matters when homes are streaming, gaming, working, uploading, and using smart devices all at once.</p>
-            </div>
-          </div>
-        </section>
-      )}
+          {step === "plans" && (
+            <PlansStep
+              settings={settings}
+              selectedPlanId={selectedPlanId}
+              setSelectedPlanId={setSelectedPlanId}
+              setStep={setStep}
+            />
+          )}
 
-      {step === "bill" && (
-        <section className="card wide center-card">
-          <p className="eyebrow red">Current bill</p>
-          <h2>What are they paying now?</h2>
-          <p>Type their monthly internet bill. The quote updates instantly.</p>
-          <div className="bill-input">
-            <span>$</span>
-            <input inputMode="decimal" value={currentBill} onChange={(e) => setCurrentBill(e.target.value)} />
-          </div>
-          <button className="primary" onClick={() => setStep("plans")}>Compare plans</button>
-        </section>
-      )}
+          {step === "options" && (
+            <OptionsStep
+              settings={settings}
+              selectedAddons={selectedAddons}
+              setSelectedAddons={setSelectedAddons}
+              phoneLines={phoneLines}
+              setPhoneLines={setPhoneLines}
+              isVerizonCustomer={isVerizonCustomer}
+              setIsVerizonCustomer={setIsVerizonCustomer}
+              phonePricePerLine={phonePricePerLine}
+              verizonSavings={verizonSavings}
+              phoneFinal={phoneFinal}
+              setStep={setStep}
+            />
+          )}
 
-      {step === "plans" && (
-        <section>
-          <div className="section-head">
-            <div>
-              <p className="eyebrow red">Plans</p>
-              <h2>Pick the plan that fits the house.</h2>
-            </div>
-            <button className="ghost" onClick={() => setStep("options")}>Next</button>
-          </div>
-          <div className="plan-grid">
-            {settings.plans.map((plan) => (
-              <button key={plan.id} className={selectedPlanId === plan.id ? "plan selected" : "plan"} onClick={() => setSelectedPlanId(plan.id)}>
-                <span className="badge">{plan.badge}</span>
-                <h3>{plan.name}</h3>
-                <p className="speed">{plan.speed}</p>
-                <p className="price">{money(plan.price)}<span>/mo</span></p>
-                <p>{plan.details}</p>
-              </button>
-            ))}
-          </div>
-        </section>
-      )}
+          {step === "savings" && (
+            <SavingsStep
+              settings={settings}
+              currentMonthly={currentMonthly}
+              selectedPlan={selectedPlan}
+              addonTotal={addonTotal}
+              phoneLines={phoneLines}
+              phonePricePerLine={phonePricePerLine}
+              phoneSubtotal={phoneSubtotal}
+              isVerizonCustomer={isVerizonCustomer}
+              verizonSavings={verizonSavings}
+              phoneFinal={phoneFinal}
+              ourMonthly={ourMonthly}
+              monthlySavings={monthlySavings}
+              annualSavings={annualSavings}
+              threeYearSavings={threeYearSavings}
+              setStep={setStep}
+            />
+          )}
 
-      {step === "options" && (
-        <section>
-          <div className="section-head">
-            <div>
-              <p className="eyebrow red">Options</p>
-              <h2>Add what they actually need.</h2>
-              <p>Keep it clean. Internet first, then add anything they actually use.</p>
-            </div>
-            <button className="ghost" onClick={() => setStep("savings")}>Show savings</button>
-          </div>
-          <div className="addon-grid">
-            {settings.addons.map((addon) => {
-              const picked = selectedAddons.indexOf(addon.id) !== -1;
-              return (
-                <button key={addon.id} className={picked ? "addon picked" : "addon"} onClick={() => toggleAddon(addon.id)}>
-                  <div>
-                    <h3>{addon.name}</h3>
-                    <p>{addon.details}</p>
-                  </div>
-                  <strong>{money(addon.price)}/mo</strong>
-                </button>
-              );
-            })}
-          </div>
-        </section>
-      )}
-
-      {step === "savings" && (
-        <section className="results-grid">
-          <div className="card summary-card">
-            <p className="eyebrow red">Quote</p>
-            <h2>{selectedPlan?.name || "Selected plan"}</h2>
-            <p className="price massive">{money(quoteTotal)}<span>/mo</span></p>
-            <p>{selectedPlan?.speed} internet{chosenAddons.length ? " + selected options" : ""}</p>
-            <div className="line-items">
-              <div><span>Current bill</span><strong>{money(currentBill)}</strong></div>
-              <div><span>Fiber plan</span><strong>{money(selectedPlan?.price)}</strong></div>
-              {chosenAddons.map((a) => <div key={a.id}><span>{a.name}</span><strong>{money(a.price)}</strong></div>)}
-              <div className="total"><span>New estimate</span><strong>{money(quoteTotal)}</strong></div>
-            </div>
-          </div>
-          <div className="savings-card">
-            <p className="eyebrow">Estimated savings</p>
-            <SavingsLine label="Per month" value={savings.monthly} />
-            <SavingsLine label="1 year" value={savings.yearly} />
-            <SavingsLine label="3 years" value={savings.threeYear} />
-            <p className="fine-print">{settings.legalNote}</p>
-            <div className="button-row">
-              <button className="ghost" onClick={() => setStep("plans")}>Change plan</button>
-              <button className="primary" onClick={() => setStep("bill")}>New quote</button>
-            </div>
-          </div>
-        </section>
-      )}
-
-      {step === "pricing" && admin && (
-        <section className="admin-panel">
-          <div className="section-head">
-            <div>
-              <p className="eyebrow red">Pricing/settings</p>
-              <h2>Cloud-saved editor</h2>
-              <p>Anything changed here saves for everyone using this page.</p>
-            </div>
-            <button className="ghost" onClick={() => setSettings(DEFAULT_SETTINGS)}>Reset defaults</button>
-          </div>
-
-          <div className="edit-grid two">
-            <Field label="Page title" value={settings.title} onChange={(v) => setSettings((o) => ({ ...o, title: v }))} />
-            <Field label="Header line" value={settings.headerLine} onChange={(v) => setSettings((o) => ({ ...o, headerLine: v }))} />
-            <Field label="Hero eyebrow" value={settings.heroEyebrow} onChange={(v) => setSettings((o) => ({ ...o, heroEyebrow: v }))} />
-            <Field label="Hero headline" value={settings.heroHeadline} onChange={(v) => setSettings((o) => ({ ...o, heroHeadline: v }))} />
-          </div>
-          <TextField label="Hero subline" value={settings.heroSubline} onChange={(v) => setSettings((o) => ({ ...o, heroSubline: v }))} />
-          <TextField label="Legal note" value={settings.legalNote} onChange={(v) => setSettings((o) => ({ ...o, legalNote: v }))} />
-
-          <h3 className="editor-title">Plans</h3>
-          <div className="editor-list">
-            {settings.plans.map((plan) => (
-              <div className="editor-item" key={plan.id}>
-                <Field label="Name" value={plan.name} onChange={(v) => updatePlan(plan.id, { name: v })} />
-                <Field label="Speed" value={plan.speed} onChange={(v) => updatePlan(plan.id, { speed: v })} />
-                <Field label="Price" type="number" value={plan.price} onChange={(v) => updatePlan(plan.id, { price: safeNumber(v) })} />
-                <Field label="Badge" value={plan.badge} onChange={(v) => updatePlan(plan.id, { badge: v })} />
-                <TextField label="Plan details" value={plan.details} onChange={(v) => updatePlan(plan.id, { details: v })} />
-                <button className="remove" onClick={() => removePlan(plan.id)}>Remove plan</button>
-              </div>
-            ))}
-          </div>
-          <button className="primary" onClick={addPlan}>Add plan</button>
-
-          <h3 className="editor-title">Add-ons</h3>
-          <div className="editor-list">
-            {settings.addons.map((addon) => (
-              <div className="editor-item compact" key={addon.id}>
-                <Field label="Name" value={addon.name} onChange={(v) => updateAddon(addon.id, { name: v })} />
-                <Field label="Price" type="number" value={addon.price} onChange={(v) => updateAddon(addon.id, { price: safeNumber(v) })} />
-                <TextField label="Add-on details" value={addon.details} onChange={(v) => updateAddon(addon.id, { details: v })} />
-                <button className="remove" onClick={() => removeAddon(addon.id)}>Remove add-on</button>
-              </div>
-            ))}
-          </div>
-          <button className="primary" onClick={addAddon}>Add add-on</button>
-        </section>
+          <footer className="disclaimer">{settings.disclaimer}</footer>
+        </>
       )}
     </main>
   );
 }
 
-function ConnectionCard({ title, subtitle, active }) {
+function FlowButton({ step, active, setStep, label }) {
   return (
-    <div className={active ? "connection active" : "connection"}>
-      <div className="icon-orb">{active ? "光" : "↯"}</div>
-      <h3>{title}</h3>
-      <p>{subtitle}</p>
-      <div className="bars"><span /><span /><span /></div>
-    </div>
+    <button
+      className={active === step ? "flow-btn active" : "flow-btn"}
+      onClick={() => setStep(step)}
+    >
+      {label}
+    </button>
   );
 }
 
-function SavingsLine({ label, value }) {
-  const good = value >= 0;
+function FiberStep({ settings, setStep }) {
   return (
-    <div className={good ? "saving positive" : "saving negative"}>
+    <section className="hero-grid">
+      <div className="hero-card">
+        <div className="label-red">Why fiber feels different</div>
+        <h1>Built for the way homes actually use internet now.</h1>
+        <p>
+          More devices. More streaming. More video calls. More gaming. More smart
+          home stuff running all day. Fiber gives the house room to breathe.
+        </p>
+
+        <div className="signal-visual">
+          <div className="old-side">
+            <span>coax/cable</span>
+            <div className="traffic-lines">
+              <i></i>
+              <i></i>
+              <i></i>
+            </div>
+            <p>Shared capacity. Slower uploads. More bottlenecks.</p>
+          </div>
+          <div className="vs-pill">VS</div>
+          <div className="new-side">
+            <span>fiber</span>
+            <div className="fiber-beam">
+              <i></i>
+              <i></i>
+              <i></i>
+            </div>
+            <p>More speed. Better reliability. Strong upload power.</p>
+          </div>
+        </div>
+
+        <button className="primary-action" onClick={() => setStep("bill")}>
+          Compare their bill
+        </button>
+      </div>
+
+      <div className="impact-stack">
+        {settings.fiberPoints.map((point, index) => (
+          <div className="impact-card" key={index}>
+            <div className="impact-number">0{index + 1}</div>
+            <h3>{point.title}</h3>
+            <strong>{point.metric}</strong>
+            <p>{point.body}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="contrast-card">
+        {settings.contrastCards.map((card, index) => (
+          <div className="contrast-row" key={index}>
+            <div className="contrast-bad">
+              <h3>{card.oldTitle}</h3>
+              <p>{card.oldBody}</p>
+            </div>
+            <div className="contrast-good">
+              <h3>{card.newTitle}</h3>
+              <p>{card.newBody}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function BillStep({ currentBill, setCurrentBill, setStep }) {
+  const current = parseMoneyInput(currentBill);
+  return (
+    <section className="center-stage">
+      <div className="big-card">
+        <div className="label-red">Current bill</div>
+        <h1>What are they paying now?</h1>
+        <p>
+          Start with their number. Then the rest of the page turns it into a clean
+          monthly, yearly, and three-year comparison.
+        </p>
+
+        <div className="bill-input-wrap">
+          <span>$</span>
+          <input
+            value={currentBill}
+            onChange={(e) => setCurrentBill(e.target.value)}
+            inputMode="decimal"
+            placeholder="100"
+          />
+        </div>
+
+        <div className="quick-bills">
+          {[70, 85, 100, 120, 150, 180].map((value) => (
+            <button key={value} onClick={() => setCurrentBill(String(value))}>
+              ${value}
+            </button>
+          ))}
+        </div>
+
+        <div className="preview-strip">
+          <span>Current monthly:</span>
+          <strong>{money(current)}</strong>
+        </div>
+
+        <button className="primary-action" onClick={() => setStep("plans")}>
+          Pick fiber plan
+        </button>
+      </div>
+    </section>
+  );
+}
+
+function PlansStep({ settings, selectedPlanId, setSelectedPlanId, setStep }) {
+  return (
+    <section className="plans-stage">
+      <div className="section-heading">
+        <div className="label-red">Plans</div>
+        <h1>Lead with the plan that makes the most sense.</h1>
+        <p>
+          1 Gig is marked as the main recommendation because that is the common
+          switch and best value.
+        </p>
+      </div>
+
+      <div className="plan-grid">
+        {settings.plans.map((plan) => {
+          const active = selectedPlanId === plan.id;
+          return (
+            <button
+              key={plan.id}
+              className={active ? "plan-card active" : plan.featured ? "plan-card featured" : "plan-card"}
+              onClick={() => setSelectedPlanId(plan.id)}
+            >
+              {plan.featured && <div className="featured-ribbon">Main pick</div>}
+              <div className="plan-topline">
+                <span>{plan.badge}</span>
+                <strong>{plan.speed}</strong>
+              </div>
+              <h2>{plan.name}</h2>
+              <div className="price-line">
+                <span>{money(plan.price)}</span>
+                <small>/mo</small>
+              </div>
+              <p>{plan.description}</p>
+            </button>
+          );
+        })}
+      </div>
+
+      <button className="primary-action wide" onClick={() => setStep("options")}>
+        Add options
+      </button>
+    </section>
+  );
+}
+
+function OptionsStep({
+  settings,
+  selectedAddons,
+  setSelectedAddons,
+  phoneLines,
+  setPhoneLines,
+  isVerizonCustomer,
+  setIsVerizonCustomer,
+  phonePricePerLine,
+  verizonSavings,
+  phoneFinal,
+  setStep,
+}) {
+  const toggleAddon = (id) => {
+    if (selectedAddons.indexOf(id) !== -1) {
+      setSelectedAddons(selectedAddons.filter((x) => x !== id));
+    } else {
+      setSelectedAddons([...selectedAddons, id]);
+    }
+  };
+
+  return (
+    <section className="options-stage">
+      <div className="section-heading">
+        <div className="label-red">Options</div>
+        <h1>Add only what they actually need.</h1>
+        <p>
+          Internet first. Then add phone, TV, landline, or Wi-Fi help only if it
+          fits the house.
+        </p>
+      </div>
+
+      <div className="option-grid">
+        {settings.addons.map((addon) => {
+          const active = selectedAddons.indexOf(addon.id) !== -1;
+          return (
+            <button
+              key={addon.id}
+              className={active ? "option-card active" : "option-card"}
+              onClick={() => toggleAddon(addon.id)}
+            >
+              <span>{addon.category || "Option"}</span>
+              <h2>{addon.name}</h2>
+              <strong>{money(addon.price)}/mo</strong>
+              <p>{addon.description}</p>
+            </button>
+          );
+        })}
+      </div>
+
+      {settings.phone.enabled && (
+        <div className="phone-module">
+          <div>
+            <div className="label-red">Mobile</div>
+            <h2>{settings.phone.title}</h2>
+            <p>{settings.phone.description}</p>
+          </div>
+
+          <div className="phone-controls">
+            <div className="line-stepper">
+              <button onClick={() => setPhoneLines(Math.max(0, phoneLines - 1))}>
+                −
+              </button>
+              <div>
+                <strong>{phoneLines}</strong>
+                <span>{settings.phone.lineLabel}</span>
+              </div>
+              <button onClick={() => setPhoneLines(phoneLines + 1)}>+</button>
+            </div>
+
+            <button
+              className={isVerizonCustomer ? "verizon-toggle active" : "verizon-toggle"}
+              onClick={() => setIsVerizonCustomer(!isVerizonCustomer)}
+            >
+              Verizon customer discount
+            </button>
+          </div>
+
+          <div className="phone-math">
+            <div>
+              <span>Phone estimate</span>
+              <strong>
+                {phoneLines} × {money(phonePricePerLine)}
+              </strong>
+            </div>
+            <div>
+              <span>{settings.phone.verizonDiscountLabel}</span>
+              <strong>-{money(verizonSavings)}/mo</strong>
+            </div>
+            <div className="total-row">
+              <span>Phone monthly</span>
+              <strong>{money(phoneFinal)}/mo</strong>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <button className="primary-action wide" onClick={() => setStep("savings")}>
+        Show savings
+      </button>
+    </section>
+  );
+}
+
+function SavingsStep({
+  settings,
+  currentMonthly,
+  selectedPlan,
+  addonTotal,
+  phoneLines,
+  phonePricePerLine,
+  phoneSubtotal,
+  isVerizonCustomer,
+  verizonSavings,
+  phoneFinal,
+  ourMonthly,
+  monthlySavings,
+  annualSavings,
+  threeYearSavings,
+  setStep,
+}) {
+  const saving = monthlySavings > 0;
+  return (
+    <section className="savings-stage">
+      <div className="savings-main">
+        <div className="label-red">Savings</div>
+        <h1>{saving ? "That is the money difference." : "Here is the clean comparison."}</h1>
+
+        <div className="comparison-bars">
+          <div className="bar old">
+            <span>Current bill</span>
+            <strong>{money(currentMonthly)}</strong>
+          </div>
+          <div className="bar new">
+            <span>New quote</span>
+            <strong>{money(ourMonthly)}</strong>
+          </div>
+        </div>
+
+        <div className={saving ? "mega-save positive" : "mega-save"}>
+          <span>Monthly difference</span>
+          <strong>{money(monthlySavings)}</strong>
+        </div>
+
+        <div className="savings-grid">
+          <div>
+            <span>1 year</span>
+            <strong>{money(annualSavings)}</strong>
+          </div>
+          <div>
+            <span>3 years</span>
+            <strong>{money(threeYearSavings)}</strong>
+          </div>
+        </div>
+
+        <button className="secondary-action" onClick={() => setStep("bill")}>
+          Change bill
+        </button>
+      </div>
+
+      <div className="quote-breakdown">
+        <h2>Quote breakdown</h2>
+        <Line label={selectedPlan ? selectedPlan.name : "Internet"} value={money(selectedPlan ? selectedPlan.price : 0)} />
+        <Line label="Selected add-ons" value={money(addonTotal)} />
+        <Line
+          label={
+            phoneLines > 0
+              ? "Mobile lines (" + phoneLines + " × " + money(phonePricePerLine) + ")"
+              : "Mobile lines"
+          }
+          value={money(phoneSubtotal)}
+        />
+        <Line
+          label={isVerizonCustomer ? settings.phone.verizonDiscountLabel : "Mobile discount"}
+          value={"-" + money(verizonSavings)}
+        />
+        <Line label="Mobile final" value={money(phoneFinal)} />
+        <div className="quote-total">
+          <span>Total monthly quote</span>
+          <strong>{money(ourMonthly)}</strong>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function Line({ label, value }) {
+  return (
+    <div className="line-item">
       <span>{label}</span>
-      <strong>{good ? money(value) : "Adds " + money(Math.abs(value))}</strong>
+      <strong>{value}</strong>
     </div>
   );
 }
 
-function Field({ label, value, onChange, type = "text" }) {
+function AdminEditor({ settings, setSettings, resetDefaults, saveStatus, error }) {
+  const update = (patch) => setSettings({ ...settings, ...patch });
+
+  const updatePlan = (id, patch) => {
+    const nextPlans = settings.plans.map((plan) =>
+      plan.id === id ? { ...plan, ...patch } : plan
+    );
+
+    setSettings({
+      ...settings,
+      plans: nextPlans,
+      primaryPlanId:
+        patch.featured === true ? id : settings.primaryPlanId,
+    });
+  };
+
+  const markPrimary = (id) => {
+    setSettings({
+      ...settings,
+      primaryPlanId: id,
+      plans: settings.plans.map((plan) => ({
+        ...plan,
+        featured: plan.id === id,
+        badge: plan.id === id ? "Most common • best value" : plan.badge,
+      })),
+    });
+  };
+
+  const addPlan = () => {
+    const id = uid();
+    setSettings({
+      ...settings,
+      plans: [
+        ...settings.plans,
+        {
+          id,
+          name: "New Plan",
+          speed: "Speed",
+          price: 0,
+          badge: "Option",
+          description: "Plan details.",
+          featured: false,
+        },
+      ],
+    });
+  };
+
+  const removePlan = (id) => {
+    const plans = settings.plans.filter((plan) => plan.id !== id);
+    setSettings({
+      ...settings,
+      plans,
+      primaryPlanId:
+        settings.primaryPlanId === id ? plans[0]?.id || "" : settings.primaryPlanId,
+    });
+  };
+
+  const updateAddon = (id, patch) => {
+    setSettings({
+      ...settings,
+      addons: settings.addons.map((addon) =>
+        addon.id === id ? { ...addon, ...patch } : addon
+      ),
+    });
+  };
+
+  const addAddon = () => {
+    setSettings({
+      ...settings,
+      addons: [
+        ...settings.addons,
+        {
+          id: uid(),
+          name: "New Add-on",
+          price: 0,
+          description: "Add-on details.",
+          category: "Option",
+        },
+      ],
+    });
+  };
+
+  const removeAddon = (id) => {
+    setSettings({
+      ...settings,
+      addons: settings.addons.filter((addon) => addon.id !== id),
+    });
+  };
+
+  const updateFiberPoint = (index, patch) => {
+    setSettings({
+      ...settings,
+      fiberPoints: settings.fiberPoints.map((point, i) =>
+        i === index ? { ...point, ...patch } : point
+      ),
+    });
+  };
+
+  const updateContrast = (index, patch) => {
+    setSettings({
+      ...settings,
+      contrastCards: settings.contrastCards.map((card, i) =>
+        i === index ? { ...card, ...patch } : card
+      ),
+    });
+  };
+
+  const updatePhone = (patch) => {
+    setSettings({
+      ...settings,
+      phone: { ...settings.phone, ...patch },
+    });
+  };
+
+  const updatePhonePlan = (index, patch) => {
+    updatePhone({
+      plans: settings.phone.plans.map((plan, i) =>
+        i === index ? { ...plan, ...patch } : plan
+      ),
+    });
+  };
+
+  return (
+    <section className="admin-panel">
+      <div className="admin-head">
+        <div>
+          <h1>Pricing/settings</h1>
+          <p>
+            Changes save locally instantly and cloud-save when Supabase is connected.
+          </p>
+        </div>
+        <div className="save-pill">
+          {saveStatus}
+          {error ? <small>{error}</small> : null}
+        </div>
+      </div>
+
+      <AdminSection title="Header">
+        <Field
+          label="Page title"
+          value={settings.title}
+          onChange={(v) => update({ title: v })}
+        />
+        <Field
+          label="Small label"
+          value={settings.eyebrow}
+          onChange={(v) => update({ eyebrow: v })}
+        />
+        <TextField
+          label="Header line"
+          value={settings.subline}
+          onChange={(v) => update({ subline: v })}
+        />
+      </AdminSection>
+
+      <AdminSection title="Fiber visuals">
+        {settings.fiberPoints.map((point, index) => (
+          <div className="admin-card" key={index}>
+            <Field
+              label="Title"
+              value={point.title}
+              onChange={(v) => updateFiberPoint(index, { title: v })}
+            />
+            <Field
+              label="Metric"
+              value={point.metric}
+              onChange={(v) => updateFiberPoint(index, { metric: v })}
+            />
+            <TextField
+              label="Body"
+              value={point.body}
+              onChange={(v) => updateFiberPoint(index, { body: v })}
+            />
+          </div>
+        ))}
+
+        {settings.contrastCards.map((card, index) => (
+          <div className="admin-card" key={"contrast-" + index}>
+            <Field
+              label="Old connection title"
+              value={card.oldTitle}
+              onChange={(v) => updateContrast(index, { oldTitle: v })}
+            />
+            <TextField
+              label="Old connection body"
+              value={card.oldBody}
+              onChange={(v) => updateContrast(index, { oldBody: v })}
+            />
+            <Field
+              label="Fiber title"
+              value={card.newTitle}
+              onChange={(v) => updateContrast(index, { newTitle: v })}
+            />
+            <TextField
+              label="Fiber body"
+              value={card.newBody}
+              onChange={(v) => updateContrast(index, { newBody: v })}
+            />
+          </div>
+        ))}
+      </AdminSection>
+
+      <AdminSection title="Plans">
+        {settings.plans.map((plan) => (
+          <div className={plan.featured ? "admin-card primary-plan-admin" : "admin-card"} key={plan.id}>
+            <div className="admin-row">
+              <Field
+                label="Plan name"
+                value={plan.name}
+                onChange={(v) => updatePlan(plan.id, { name: v })}
+              />
+              <Field
+                label="Speed"
+                value={plan.speed}
+                onChange={(v) => updatePlan(plan.id, { speed: v })}
+              />
+              <MoneyField
+                label="Price"
+                value={plan.price}
+                onChange={(v) => updatePlan(plan.id, { price: v })}
+              />
+            </div>
+            <Field
+              label="Badge"
+              value={plan.badge}
+              onChange={(v) => updatePlan(plan.id, { badge: v })}
+            />
+            <TextField
+              label="Plan details"
+              value={plan.description}
+              onChange={(v) => updatePlan(plan.id, { description: v })}
+            />
+            <div className="admin-actions-row">
+              <button onClick={() => markPrimary(plan.id)}>
+                {plan.featured ? "Main plan selected" : "Make main plan"}
+              </button>
+              <button className="danger" onClick={() => removePlan(plan.id)}>
+                Remove plan
+              </button>
+            </div>
+          </div>
+        ))}
+        <button className="admin-add" onClick={addPlan}>
+          Add plan
+        </button>
+      </AdminSection>
+
+      <AdminSection title="Add-ons">
+        {settings.addons.map((addon) => (
+          <div className="admin-card" key={addon.id}>
+            <div className="admin-row">
+              <Field
+                label="Name"
+                value={addon.name}
+                onChange={(v) => updateAddon(addon.id, { name: v })}
+              />
+              <Field
+                label="Category"
+                value={addon.category || ""}
+                onChange={(v) => updateAddon(addon.id, { category: v })}
+              />
+              <MoneyField
+                label="Price"
+                value={addon.price}
+                onChange={(v) => updateAddon(addon.id, { price: v })}
+              />
+            </div>
+            <TextField
+              label="Details"
+              value={addon.description}
+              onChange={(v) => updateAddon(addon.id, { description: v })}
+            />
+            <button className="danger" onClick={() => removeAddon(addon.id)}>
+              Remove add-on
+            </button>
+          </div>
+        ))}
+        <button className="admin-add" onClick={addAddon}>
+          Add add-on
+        </button>
+      </AdminSection>
+
+      <AdminSection title="Phone plans / Verizon savings">
+        <div className="admin-card">
+          <label className="check-row">
+            <input
+              type="checkbox"
+              checked={!!settings.phone.enabled}
+              onChange={(e) => updatePhone({ enabled: e.target.checked })}
+            />
+            Enable phone module
+          </label>
+          <Field
+            label="Phone section title"
+            value={settings.phone.title}
+            onChange={(v) => updatePhone({ title: v })}
+          />
+          <TextField
+            label="Phone description"
+            value={settings.phone.description}
+            onChange={(v) => updatePhone({ description: v })}
+          />
+          <Field
+            label="Line label"
+            value={settings.phone.lineLabel}
+            onChange={(v) => updatePhone({ lineLabel: v })}
+          />
+          <MoneyField
+            label="Verizon discount per line"
+            value={settings.phone.verizonDiscountPerLine}
+            onChange={(v) => updatePhone({ verizonDiscountPerLine: v })}
+          />
+          <Field
+            label="Discount label"
+            value={settings.phone.verizonDiscountLabel}
+            onChange={(v) => updatePhone({ verizonDiscountLabel: v })}
+          />
+        </div>
+
+        {settings.phone.plans.map((plan, index) => (
+          <div className="admin-card" key={plan.id || index}>
+            <Field
+              label="Phone plan name"
+              value={plan.name}
+              onChange={(v) => updatePhonePlan(index, { name: v })}
+            />
+            <MoneyField
+              label="Phone price per line"
+              value={plan.price}
+              onChange={(v) => updatePhonePlan(index, { price: v })}
+            />
+            <TextField
+              label="Phone plan details"
+              value={plan.description}
+              onChange={(v) => updatePhonePlan(index, { description: v })}
+            />
+          </div>
+        ))}
+      </AdminSection>
+
+      <AdminSection title="Legal/footer">
+        <TextField
+          label="Disclaimer"
+          value={settings.disclaimer}
+          onChange={(v) => update({ disclaimer: v })}
+        />
+      </AdminSection>
+
+      <button className="reset-btn" onClick={resetDefaults}>
+        Reset defaults
+      </button>
+    </section>
+  );
+}
+
+function AdminSection({ title, children }) {
+  return (
+    <div className="admin-section">
+      <h2>{title}</h2>
+      <div className="admin-section-body">{children}</div>
+    </div>
+  );
+}
+
+function Field({ label, value, onChange }) {
   return (
     <label className="field">
       <span>{label}</span>
-      <input type={type} value={value} onChange={(e) => onChange(e.target.value)} />
+      <input value={value || ""} onChange={(e) => onChange(e.target.value)} />
+    </label>
+  );
+}
+
+function MoneyField({ label, value, onChange }) {
+  return (
+    <label className="field">
+      <span>{label}</span>
+      <input
+        value={value}
+        inputMode="decimal"
+        onChange={(e) => onChange(parseMoneyInput(e.target.value))}
+      />
     </label>
   );
 }
 
 function TextField({ label, value, onChange }) {
   return (
-    <label className="field full">
+    <label className="field">
       <span>{label}</span>
-      <textarea value={value} onChange={(e) => onChange(e.target.value)} />
+      <textarea
+        value={value || ""}
+        onChange={(e) => onChange(e.target.value)}
+        rows={3}
+      />
     </label>
   );
 }
 
-function Style() {
+function GlobalStyles() {
   return (
     <style jsx global>{`
-      html, body { margin: 0; min-height: 100%; background: #f7f7f8; color: #151515; }
-      * { box-sizing: border-box; }
-      button, input, textarea { font: inherit; }
-      button { -webkit-tap-highlight-color: transparent; }
-      .sales-page {
+      html,
+      body {
+        margin: 0;
+        background: #f7f7f7;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      button,
+      input,
+      textarea,
+      select {
+        font: inherit;
+      }
+
+      button {
+        cursor: pointer;
+      }
+
+      .sales-shell {
         min-height: 100vh;
-        padding: 18px;
-        font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
         background:
-          radial-gradient(circle at top left, rgba(210, 0, 0, .16), transparent 34rem),
-          linear-gradient(180deg, #ffffff 0%, #f4f4f5 42%, #ececef 100%);
+          radial-gradient(circle at 20% 0%, rgba(212, 0, 0, 0.12), transparent 32rem),
+          linear-gradient(180deg, #ffffff 0%, #f5f5f5 45%, #ededed 100%);
+        color: #161616;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        padding: 18px;
       }
-      .loading-card, .card, .hero-card, .fiber-visual, .savings-card, .admin-panel {
-        background: rgba(255,255,255,.96);
-        border: 1px solid rgba(20,20,20,.08);
-        box-shadow: 0 24px 80px rgba(0,0,0,.11);
+
+      .loader-card {
+        width: min(520px, 92vw);
+        margin: 15vh auto;
         border-radius: 28px;
+        background: white;
+        padding: 36px;
+        text-align: center;
+        box-shadow: 0 24px 70px rgba(0, 0, 0, 0.16);
       }
-      .loading-card { margin: 20vh auto; max-width: 420px; padding: 34px; text-align: center; font-weight: 900; color: #d71920; }
+
+      .brand-mark,
+      .logo-text {
+        color: #d71920;
+        font-weight: 1000;
+        letter-spacing: -0.07em;
+        line-height: 0.9;
+        text-transform: uppercase;
+      }
+
+      .logo-text {
+        font-size: clamp(2.4rem, 7vw, 5.7rem);
+        text-shadow: 0 5px 0 rgba(215, 25, 32, 0.09);
+      }
+
+      .brand-mark {
+        font-size: 3rem;
+      }
+
       .topbar {
-        max-width: 1180px; margin: 0 auto 14px; display: flex; justify-content: space-between; gap: 16px; align-items: center;
-        background: #fff; border-radius: 24px; padding: 16px 18px; box-shadow: 0 12px 40px rgba(0,0,0,.08); border-top: 5px solid #d71920;
+        display: flex;
+        justify-content: space-between;
+        gap: 18px;
+        align-items: flex-start;
+        max-width: 1260px;
+        margin: 0 auto 18px;
+        border: 1px solid rgba(215, 25, 32, 0.12);
+        background: rgba(255, 255, 255, 0.92);
+        border-radius: 30px;
+        padding: 22px;
+        box-shadow: 0 18px 60px rgba(0, 0, 0, 0.08);
       }
-      .topbar h1 { margin: 0; font-size: clamp(30px, 6vw, 58px); letter-spacing: -.06em; line-height: .9; color: #151515; }
-      .topbar p { margin: 4px 0 0; color: #666; font-weight: 750; }
-      .eyebrow { margin: 0 0 8px; text-transform: uppercase; letter-spacing: .18em; font-size: 12px; font-weight: 950; color: #555; }
-      .eyebrow.red { color: #d71920; }
-      .admin-box { display: flex; gap: 8px; align-items: center; }
-      .admin-box input { width: 88px; border: 1px solid #ddd; border-radius: 14px; padding: 12px; font-size: 16px; }
-      .admin-box button, .primary, .ghost, .steps button { border: 0; border-radius: 999px; padding: 13px 18px; font-weight: 950; cursor: pointer; }
-      .primary { background: #d71920; color: white; box-shadow: 0 12px 24px rgba(215,25,32,.22); }
-      .ghost { background: #151515; color: #fff; }
-      .steps { max-width: 1180px; margin: 0 auto 14px; display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; }
-      .steps button { flex: 0 0 auto; background: #fff; color: #555; border: 1px solid #eee; box-shadow: 0 8px 20px rgba(0,0,0,.05); }
-      .steps button.active { background: #d71920; color: white; }
-      .steps .admin-step { background: #111; color: white; }
-      .notice { max-width: 1180px; margin: 0 auto 14px; background: #fff7ed; border: 1px solid #fed7aa; color: #9a3412; padding: 12px 16px; border-radius: 18px; font-weight: 850; }
-      .notice.bad { background: #fef2f2; border-color: #fecaca; color: #991b1b; }
-      section { max-width: 1180px; margin: 0 auto; }
-      .hero-grid, .results-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-      .hero-card, .fiber-visual, .card, .savings-card, .admin-panel { padding: clamp(18px, 4vw, 34px); }
-      h2 { margin: 0 0 12px; font-size: clamp(32px, 5vw, 62px); letter-spacing: -.06em; line-height: .96; }
-      h3 { margin: 0 0 6px; }
-      p { line-height: 1.45; }
-      .visual-row { margin: 26px 0; display: grid; grid-template-columns: 1fr auto 1fr; gap: 10px; align-items: stretch; }
-      .versus { align-self: center; font-weight: 1000; color: #d71920; }
-      .connection { border-radius: 24px; background: #f1f1f3; border: 1px solid #e7e7ea; padding: 18px; text-align: center; }
-      .connection.active { background: #fff1f2; border-color: rgba(215,25,32,.25); }
-      .icon-orb { width: 58px; height: 58px; margin: 0 auto 10px; display: grid; place-items: center; border-radius: 999px; background: #151515; color: #fff; font-weight: 1000; }
-      .connection.active .icon-orb { background: #d71920; }
-      .bars { display: flex; justify-content: center; gap: 4px; margin-top: 12px; }
-      .bars span { width: 8px; border-radius: 8px; background: #d71920; display: block; }
-      .bars span:nth-child(1) { height: 18px; opacity: .45; } .bars span:nth-child(2) { height: 30px; opacity: .7; } .bars span:nth-child(3) { height: 42px; }
-      .fiber-visual { position: relative; overflow: hidden; min-height: 480px; background: linear-gradient(135deg, #fff, #fafafa 45%, #fee2e2); }
-      .house, .node { position: absolute; border-radius: 24px; padding: 18px; font-weight: 1000; box-shadow: 0 16px 40px rgba(0,0,0,.12); }
-      .house.big { left: 30px; top: 62px; width: 150px; height: 150px; display: grid; place-items: center; background: #151515; color: white; }
-      .node { right: 30px; top: 92px; background: #d71920; color: #fff; }
-      .fiber-line { position: absolute; left: 150px; right: 145px; top: 150px; height: 10px; background: #d71920; border-radius: 99px; box-shadow: 0 0 28px rgba(215,25,32,.55); }
-      .fiber-line span { position: absolute; top: -14px; width: 38px; height: 38px; border-radius: 999px; background: rgba(215,25,32,.18); animation: pulse 1.8s infinite; }
-      .fiber-line span:nth-child(1) { left: 10%; } .fiber-line span:nth-child(2) { left: 45%; animation-delay: .35s; } .fiber-line span:nth-child(3) { left: 78%; animation-delay: .7s; }
-      @keyframes pulse { 0%,100%{ transform: scale(.8); opacity:.25;} 50%{ transform: scale(1.2); opacity:1;} }
-      .visual-copy { position: absolute; left: 30px; right: 30px; bottom: 30px; background: rgba(255,255,255,.85); border: 1px solid rgba(0,0,0,.06); border-radius: 24px; padding: 20px; backdrop-filter: blur(12px); }
-      .center-card { max-width: 760px; text-align: center; }
-      .wide { padding: 34px; }
-      .bill-input { margin: 24px auto; max-width: 420px; display: flex; align-items: center; gap: 8px; background: #fff; border: 3px solid #d71920; border-radius: 28px; padding: 12px 18px; box-shadow: inset 0 0 0 1px #fff; }
-      .bill-input span { font-size: 42px; font-weight: 1000; color: #d71920; }
-      .bill-input input { min-width: 0; width: 100%; border: 0; outline: 0; font-size: 54px; font-weight: 1000; letter-spacing: -.06em; }
-      .section-head { display: flex; align-items: end; justify-content: space-between; gap: 16px; margin-bottom: 14px; }
-      .plan-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
-      .plan, .addon { border: 2px solid transparent; border-radius: 26px; background: #fff; padding: 20px; text-align: left; box-shadow: 0 16px 44px rgba(0,0,0,.08); cursor: pointer; }
-      .plan.selected, .addon.picked { border-color: #d71920; background: #fff1f2; }
-      .badge { display: inline-block; border-radius: 999px; background: #151515; color: #fff; padding: 7px 11px; font-size: 11px; font-weight: 950; margin-bottom: 14px; }
-      .speed { color: #d71920; font-weight: 950; }
-      .price { margin: 10px 0; font-size: 38px; font-weight: 1000; letter-spacing: -.06em; color: #151515; }
-      .price span { font-size: 16px; color: #777; letter-spacing: 0; }
-      .addon-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-      .addon { display: flex; justify-content: space-between; gap: 18px; align-items: center; }
-      .addon strong { white-space: nowrap; color: #d71920; }
-      .summary-card .massive { font-size: clamp(52px, 7vw, 92px); }
-      .line-items { margin-top: 20px; border-top: 1px solid #eee; }
-      .line-items div { display: flex; justify-content: space-between; gap: 12px; padding: 13px 0; border-bottom: 1px solid #eee; font-weight: 850; }
-      .line-items .total { font-size: 20px; color: #d71920; }
-      .savings-card { background: linear-gradient(135deg, #d71920, #8b0006); color: white; }
-      .savings-card .eyebrow { color: rgba(255,255,255,.75); }
-      .saving { display: flex; justify-content: space-between; gap: 12px; align-items: center; background: rgba(255,255,255,.13); border: 1px solid rgba(255,255,255,.16); border-radius: 22px; padding: 18px; margin-bottom: 12px; font-weight: 950; }
-      .saving strong { font-size: clamp(24px, 5vw, 46px); letter-spacing: -.05em; }
-      .negative strong { color: #ffe4e6; }
-      .fine-print { margin-top: 18px; color: rgba(255,255,255,.76); font-weight: 750; }
-      .button-row { margin-top: 18px; display: flex; gap: 10px; flex-wrap: wrap; }
-      .admin-panel { margin-bottom: 40px; }
-      .edit-grid.two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-      .field { display: block; margin-bottom: 12px; }
-      .field span { display: block; margin-bottom: 6px; font-size: 12px; text-transform: uppercase; letter-spacing: .12em; font-weight: 950; color: #777; }
-      .field input, .field textarea { width: 100%; border: 1px solid #ddd; border-radius: 16px; padding: 13px 14px; outline: 0; background: #fff; font-size: 16px; }
-      .field textarea { min-height: 86px; resize: vertical; }
-      .editor-title { margin: 26px 0 12px; font-size: 26px; letter-spacing: -.04em; }
-      .editor-list { display: grid; gap: 12px; margin-bottom: 14px; }
-      .editor-item { display: grid; grid-template-columns: 1fr 1fr 140px 1fr; gap: 10px; background: #f7f7f8; border: 1px solid #eee; border-radius: 24px; padding: 14px; }
-      .editor-item .full { grid-column: 1 / -1; }
-      .editor-item.compact { grid-template-columns: 1fr 140px; }
-      .remove { grid-column: 1 / -1; border: 0; background: #111; color: #fff; border-radius: 14px; padding: 12px; font-weight: 950; }
-      @media (max-width: 850px) {
-        .sales-page { padding: 12px; }
-        .topbar { align-items: flex-start; flex-direction: column; }
-        .hero-grid, .results-grid, .plan-grid, .addon-grid, .edit-grid.two { grid-template-columns: 1fr; }
-        .visual-row { grid-template-columns: 1fr; }
-        .versus { text-align: center; }
-        .fiber-visual { min-height: 430px; }
-        .house.big { width: 110px; height: 110px; }
-        .node { right: 18px; }
-        .fiber-line { left: 110px; right: 95px; }
-        .section-head { align-items: stretch; flex-direction: column; }
-        .editor-item, .editor-item.compact { grid-template-columns: 1fr; }
-        .bill-input input { font-size: 44px; }
+
+      .micro,
+      .label-red {
+        color: #d71920;
+        text-transform: uppercase;
+        letter-spacing: 0.14em;
+        font-weight: 950;
+        font-size: 0.78rem;
+      }
+
+      .subline {
+        margin: 8px 0 0;
+        color: #4c4c4c;
+        font-weight: 750;
+        font-size: 1rem;
+      }
+
+      .admin-wrap {
+        min-width: 190px;
+        display: flex;
+        justify-content: flex-end;
+      }
+
+      .ghost-admin {
+        border: 0;
+        background: transparent;
+        color: rgba(0, 0, 0, 0.35);
+        font-size: 0.78rem;
+        font-weight: 850;
+        padding: 8px 10px;
+      }
+
+      .pin-box {
+        display: grid;
+        gap: 7px;
+        grid-template-columns: 1fr auto auto;
+        background: #f4f4f4;
+        border-radius: 16px;
+        padding: 6px;
+      }
+
+      .pin-box input {
+        min-width: 70px;
+        border: 1px solid #ddd;
+        background: white;
+        border-radius: 12px;
+        padding: 9px 10px;
+      }
+
+      .pin-box button,
+      .admin-status button {
+        border: 0;
+        border-radius: 12px;
+        background: #d71920;
+        color: white;
+        font-weight: 950;
+        padding: 9px 12px;
+      }
+
+      .pin-box .plain {
+        background: #e8e8e8;
+        color: #333;
+      }
+
+      .admin-status {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        background: #fff1f1;
+        color: #8b0000;
+        border: 1px solid rgba(215, 25, 32, 0.16);
+        border-radius: 16px;
+        padding: 8px;
+        font-weight: 900;
+        font-size: 0.85rem;
+      }
+
+      .flow-nav {
+        max-width: 1260px;
+        margin: 0 auto 18px;
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 8px;
+        background: #171717;
+        border-radius: 22px;
+        padding: 8px;
+        box-shadow: 0 14px 45px rgba(0, 0, 0, 0.16);
+      }
+
+      .flow-btn {
+        border: 0;
+        border-radius: 16px;
+        background: transparent;
+        color: rgba(255, 255, 255, 0.72);
+        font-weight: 950;
+        padding: 14px 8px;
+      }
+
+      .flow-btn.active {
+        background: #d71920;
+        color: white;
+      }
+
+      .hero-grid,
+      .plans-stage,
+      .options-stage,
+      .savings-stage,
+      .center-stage,
+      .admin-panel {
+        max-width: 1260px;
+        margin: 0 auto;
+      }
+
+      .hero-grid {
+        display: grid;
+        grid-template-columns: 1.25fr 0.85fr;
+        gap: 18px;
+      }
+
+      .hero-card,
+      .big-card,
+      .impact-card,
+      .contrast-card,
+      .plan-card,
+      .option-card,
+      .phone-module,
+      .savings-main,
+      .quote-breakdown,
+      .admin-panel,
+      .admin-section {
+        background: rgba(255, 255, 255, 0.96);
+        border: 1px solid rgba(0, 0, 0, 0.07);
+        border-radius: 30px;
+        box-shadow: 0 18px 55px rgba(0, 0, 0, 0.1);
+      }
+
+      .hero-card {
+        padding: clamp(22px, 4vw, 42px);
+      }
+
+      .hero-card h1,
+      .big-card h1,
+      .section-heading h1,
+      .savings-main h1 {
+        margin: 7px 0 10px;
+        font-size: clamp(2.15rem, 5vw, 4.6rem);
+        letter-spacing: -0.075em;
+        line-height: 0.9;
+      }
+
+      .hero-card p,
+      .big-card p,
+      .section-heading p {
+        color: #545454;
+        font-size: 1.08rem;
+        line-height: 1.5;
+        font-weight: 700;
+      }
+
+      .signal-visual {
+        position: relative;
+        display: grid;
+        grid-template-columns: 1fr auto 1fr;
+        gap: 12px;
+        margin: 26px 0;
+        align-items: stretch;
+      }
+
+      .old-side,
+      .new-side {
+        border-radius: 26px;
+        padding: 18px;
+        min-height: 215px;
+        overflow: hidden;
+      }
+
+      .old-side {
+        background: linear-gradient(135deg, #efefef, #d9d9d9);
+        color: #444;
+      }
+
+      .new-side {
+        background: radial-gradient(circle at 20% 20%, #ffebeb, transparent 40%), linear-gradient(135deg, #d71920, #8b0000);
+        color: white;
+      }
+
+      .old-side span,
+      .new-side span {
+        display: inline-block;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        font-weight: 1000;
+        font-size: 0.72rem;
+        margin-bottom: 18px;
+      }
+
+      .old-side p,
+      .new-side p {
+        margin-top: 22px;
+        font-size: 0.95rem;
+        color: inherit;
+      }
+
+      .traffic-lines,
+      .fiber-beam {
+        display: grid;
+        gap: 12px;
+      }
+
+      .traffic-lines i,
+      .fiber-beam i {
+        display: block;
+        height: 13px;
+        border-radius: 999px;
+      }
+
+      .traffic-lines i {
+        background: #9d9d9d;
+        width: 60%;
+      }
+
+      .traffic-lines i:nth-child(2) {
+        width: 82%;
+        opacity: 0.6;
+      }
+
+      .traffic-lines i:nth-child(3) {
+        width: 45%;
+        opacity: 0.35;
+      }
+
+      .fiber-beam i {
+        background: white;
+        box-shadow: 0 0 22px rgba(255, 255, 255, 0.65);
+      }
+
+      .fiber-beam i:nth-child(2) {
+        background: #ffd0d0;
+      }
+
+      .fiber-beam i:nth-child(3) {
+        background: #fff;
+      }
+
+      .vs-pill {
+        align-self: center;
+        background: #171717;
+        color: white;
+        border-radius: 999px;
+        padding: 12px 10px;
+        font-weight: 1000;
+        z-index: 2;
+      }
+
+      .primary-action,
+      .secondary-action,
+      .admin-add,
+      .reset-btn {
+        border: 0;
+        border-radius: 18px;
+        background: #d71920;
+        color: white;
+        padding: 16px 22px;
+        font-weight: 1000;
+        font-size: 1rem;
+        box-shadow: 0 14px 30px rgba(215, 25, 32, 0.28);
+      }
+
+      .primary-action.wide {
+        width: 100%;
+        margin-top: 18px;
+      }
+
+      .secondary-action {
+        background: #171717;
+        box-shadow: none;
+      }
+
+      .impact-stack {
+        display: grid;
+        gap: 18px;
+      }
+
+      .impact-card {
+        padding: 22px;
+        position: relative;
+        overflow: hidden;
+      }
+
+      .impact-number {
+        position: absolute;
+        right: 18px;
+        top: 8px;
+        font-size: 3.6rem;
+        font-weight: 1000;
+        color: rgba(215, 25, 32, 0.08);
+        letter-spacing: -0.08em;
+      }
+
+      .impact-card h3 {
+        margin: 0 0 6px;
+        font-size: 1.45rem;
+        letter-spacing: -0.04em;
+      }
+
+      .impact-card strong {
+        color: #d71920;
+        font-size: 1rem;
+      }
+
+      .impact-card p {
+        color: #555;
+        font-weight: 700;
+        line-height: 1.45;
+      }
+
+      .contrast-card {
+        grid-column: 1 / -1;
+        padding: 18px;
+      }
+
+      .contrast-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 14px;
+      }
+
+      .contrast-bad,
+      .contrast-good {
+        border-radius: 22px;
+        padding: 20px;
+      }
+
+      .contrast-bad {
+        background: #eeeeee;
+        color: #454545;
+      }
+
+      .contrast-good {
+        background: #fff0f0;
+        color: #740000;
+        border: 1px solid rgba(215, 25, 32, 0.14);
+      }
+
+      .center-stage {
+        display: grid;
+        place-items: center;
+      }
+
+      .big-card {
+        width: min(780px, 100%);
+        padding: clamp(24px, 4vw, 46px);
+      }
+
+      .bill-input-wrap {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        border: 3px solid #d71920;
+        background: white;
+        border-radius: 28px;
+        padding: 12px 18px;
+        margin: 24px 0 14px;
+      }
+
+      .bill-input-wrap span {
+        color: #d71920;
+        font-size: 3rem;
+        font-weight: 1000;
+      }
+
+      .bill-input-wrap input {
+        width: 100%;
+        border: 0;
+        outline: 0;
+        font-size: clamp(3rem, 10vw, 6.5rem);
+        font-weight: 1000;
+        letter-spacing: -0.08em;
+      }
+
+      .quick-bills {
+        display: grid;
+        grid-template-columns: repeat(6, 1fr);
+        gap: 8px;
+        margin-bottom: 16px;
+      }
+
+      .quick-bills button {
+        border: 0;
+        border-radius: 14px;
+        padding: 12px 8px;
+        font-weight: 950;
+        background: #f0f0f0;
+      }
+
+      .preview-strip {
+        display: flex;
+        justify-content: space-between;
+        background: #171717;
+        color: white;
+        border-radius: 18px;
+        padding: 15px 18px;
+        margin-bottom: 16px;
+        font-weight: 900;
+      }
+
+      .section-heading {
+        margin: 6px 0 18px;
+      }
+
+      .plan-grid,
+      .option-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 14px;
+      }
+
+      .plan-card,
+      .option-card {
+        border: 2px solid transparent;
+        text-align: left;
+        padding: 22px;
+        position: relative;
+        overflow: hidden;
+      }
+
+      .plan-card.active,
+      .plan-card.featured.active,
+      .option-card.active {
+        border-color: #d71920;
+        box-shadow: 0 18px 55px rgba(215, 25, 32, 0.18);
+      }
+
+      .plan-card.featured {
+        border-color: rgba(215, 25, 32, 0.32);
+        background: #fff8f8;
+      }
+
+      .featured-ribbon {
+        position: absolute;
+        right: -36px;
+        top: 20px;
+        rotate: 35deg;
+        background: #d71920;
+        color: white;
+        padding: 8px 42px;
+        font-size: 0.72rem;
+        font-weight: 1000;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+      }
+
+      .plan-topline {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        color: #d71920;
+        font-weight: 1000;
+        font-size: 0.83rem;
+      }
+
+      .plan-card h2,
+      .option-card h2 {
+        margin: 14px 0 4px;
+        font-size: 1.65rem;
+        letter-spacing: -0.05em;
+      }
+
+      .price-line span {
+        color: #d71920;
+        font-size: 2.4rem;
+        font-weight: 1000;
+        letter-spacing: -0.07em;
+      }
+
+      .price-line small {
+        font-weight: 900;
+        color: #777;
+      }
+
+      .plan-card p,
+      .option-card p {
+        color: #555;
+        font-weight: 700;
+        line-height: 1.45;
+      }
+
+      .option-card span {
+        color: #d71920;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        font-weight: 1000;
+        font-size: 0.75rem;
+      }
+
+      .option-card strong {
+        display: block;
+        color: #d71920;
+        font-size: 1.3rem;
+        margin: 6px 0;
+      }
+
+      .phone-module {
+        margin-top: 18px;
+        padding: 24px;
+        display: grid;
+        grid-template-columns: 1fr 1.1fr 1fr;
+        gap: 18px;
+        align-items: center;
+      }
+
+      .phone-module h2 {
+        margin: 6px 0;
+        font-size: 2rem;
+        letter-spacing: -0.06em;
+      }
+
+      .phone-module p {
+        color: #555;
+        font-weight: 700;
+        line-height: 1.45;
+      }
+
+      .phone-controls {
+        display: grid;
+        gap: 12px;
+      }
+
+      .line-stepper {
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        gap: 10px;
+        align-items: center;
+        background: #f2f2f2;
+        border-radius: 22px;
+        padding: 10px;
+      }
+
+      .line-stepper button {
+        border: 0;
+        border-radius: 16px;
+        width: 54px;
+        height: 54px;
+        background: #171717;
+        color: white;
+        font-size: 2rem;
+        font-weight: 900;
+      }
+
+      .line-stepper div {
+        text-align: center;
+      }
+
+      .line-stepper strong {
+        display: block;
+        font-size: 2.3rem;
+        line-height: 1;
+      }
+
+      .line-stepper span {
+        color: #555;
+        font-weight: 900;
+      }
+
+      .verizon-toggle {
+        border: 2px solid #ddd;
+        border-radius: 18px;
+        background: white;
+        padding: 14px;
+        font-weight: 1000;
+      }
+
+      .verizon-toggle.active {
+        background: #d71920;
+        color: white;
+        border-color: #d71920;
+      }
+
+      .phone-math {
+        background: #171717;
+        color: white;
+        border-radius: 22px;
+        padding: 16px;
+        display: grid;
+        gap: 11px;
+      }
+
+      .phone-math div {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      .phone-math span {
+        color: rgba(255, 255, 255, 0.67);
+        font-weight: 800;
+      }
+
+      .phone-math strong {
+        font-weight: 1000;
+      }
+
+      .phone-math .total-row {
+        border-top: 1px solid rgba(255, 255, 255, 0.15);
+        padding-top: 10px;
+        color: #fff;
+      }
+
+      .savings-stage {
+        display: grid;
+        grid-template-columns: 1.25fr 0.75fr;
+        gap: 18px;
+      }
+
+      .savings-main,
+      .quote-breakdown {
+        padding: clamp(22px, 4vw, 42px);
+      }
+
+      .comparison-bars {
+        display: grid;
+        gap: 12px;
+        margin: 18px 0;
+      }
+
+      .bar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-radius: 22px;
+        padding: 18px;
+        font-weight: 900;
+      }
+
+      .bar.old {
+        background: #ececec;
+      }
+
+      .bar.new {
+        background: #fff0f0;
+        border: 1px solid rgba(215, 25, 32, 0.18);
+      }
+
+      .bar strong {
+        font-size: 2rem;
+        letter-spacing: -0.06em;
+      }
+
+      .mega-save {
+        border-radius: 28px;
+        padding: 24px;
+        background: #171717;
+        color: white;
+      }
+
+      .mega-save.positive {
+        background: linear-gradient(135deg, #d71920, #8b0000);
+      }
+
+      .mega-save span {
+        display: block;
+        font-weight: 900;
+        opacity: 0.8;
+      }
+
+      .mega-save strong {
+        display: block;
+        font-size: clamp(3.5rem, 10vw, 7rem);
+        letter-spacing: -0.09em;
+        line-height: 0.95;
+      }
+
+      .savings-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+        margin: 14px 0;
+      }
+
+      .savings-grid div {
+        background: #f2f2f2;
+        border-radius: 20px;
+        padding: 18px;
+      }
+
+      .savings-grid span {
+        display: block;
+        color: #666;
+        font-weight: 900;
+      }
+
+      .savings-grid strong {
+        display: block;
+        color: #d71920;
+        font-size: 2rem;
+        letter-spacing: -0.07em;
+      }
+
+      .quote-breakdown h2 {
+        margin-top: 0;
+        font-size: 2rem;
+        letter-spacing: -0.06em;
+      }
+
+      .line-item,
+      .quote-total {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        border-bottom: 1px solid #eee;
+        padding: 13px 0;
+        font-weight: 850;
+      }
+
+      .line-item span {
+        color: #666;
+      }
+
+      .quote-total {
+        margin-top: 8px;
+        border: 0;
+        background: #171717;
+        color: white;
+        border-radius: 18px;
+        padding: 18px;
+      }
+
+      .quote-total strong {
+        color: #fff;
+        font-size: 1.6rem;
+        letter-spacing: -0.05em;
+      }
+
+      .disclaimer {
+        max-width: 1260px;
+        margin: 18px auto 0;
+        color: #666;
+        font-size: 0.88rem;
+        font-weight: 700;
+        line-height: 1.45;
+        text-align: center;
+      }
+
+      .admin-panel {
+        padding: 22px;
+      }
+
+      .admin-head {
+        display: flex;
+        justify-content: space-between;
+        gap: 18px;
+        margin-bottom: 18px;
+      }
+
+      .admin-head h1 {
+        margin: 0;
+        font-size: 2.4rem;
+        letter-spacing: -0.06em;
+      }
+
+      .admin-head p {
+        margin: 6px 0 0;
+        color: #555;
+        font-weight: 750;
+      }
+
+      .save-pill {
+        align-self: flex-start;
+        background: #171717;
+        color: white;
+        border-radius: 18px;
+        padding: 12px 14px;
+        font-weight: 900;
+      }
+
+      .save-pill small {
+        display: block;
+        color: #ffb3b3;
+        margin-top: 4px;
+      }
+
+      .admin-section {
+        padding: 18px;
+        margin-bottom: 16px;
+        box-shadow: none;
+        background: #fafafa;
+      }
+
+      .admin-section h2 {
+        margin: 0 0 14px;
+        color: #d71920;
+        letter-spacing: -0.04em;
+      }
+
+      .admin-section-body {
+        display: grid;
+        gap: 12px;
+      }
+
+      .admin-card {
+        background: white;
+        border: 1px solid #e8e8e8;
+        border-radius: 20px;
+        padding: 14px;
+        display: grid;
+        gap: 10px;
+      }
+
+      .primary-plan-admin {
+        border-color: rgba(215, 25, 32, 0.35);
+        background: #fff7f7;
+      }
+
+      .admin-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr 120px;
+        gap: 10px;
+      }
+
+      .field {
+        display: grid;
+        gap: 5px;
+      }
+
+      .field span {
+        color: #555;
+        font-size: 0.82rem;
+        font-weight: 900;
+      }
+
+      .field input,
+      .field textarea {
+        width: 100%;
+        border: 1px solid #ddd;
+        border-radius: 14px;
+        background: white;
+        padding: 12px;
+        outline: none;
+      }
+
+      .field input:focus,
+      .field textarea:focus {
+        border-color: #d71920;
+      }
+
+      .admin-actions-row {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      .admin-actions-row button,
+      .danger {
+        border: 0;
+        border-radius: 14px;
+        background: #171717;
+        color: white;
+        padding: 12px 14px;
+        font-weight: 950;
+      }
+
+      .danger {
+        background: #8b0000;
+      }
+
+      .admin-add {
+        box-shadow: none;
+      }
+
+      .reset-btn {
+        background: #171717;
+        box-shadow: none;
+      }
+
+      .check-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-weight: 950;
+      }
+
+      .check-row input {
+        width: 20px;
+        height: 20px;
+      }
+
+      @media (max-width: 880px) {
+        .sales-shell {
+          padding: 10px;
+        }
+
+        .topbar {
+          flex-direction: column;
+          border-radius: 22px;
+          padding: 16px;
+        }
+
+        .logo-text {
+          font-size: 2.8rem;
+        }
+
+        .flow-nav {
+          grid-template-columns: repeat(5, minmax(92px, 1fr));
+          overflow-x: auto;
+          border-radius: 18px;
+        }
+
+        .flow-btn {
+          white-space: nowrap;
+        }
+
+        .hero-grid,
+        .savings-stage,
+        .phone-module {
+          grid-template-columns: 1fr;
+        }
+
+        .signal-visual,
+        .contrast-row {
+          grid-template-columns: 1fr;
+        }
+
+        .vs-pill {
+          justify-self: center;
+          margin: -4px 0;
+        }
+
+        .plan-grid,
+        .option-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .quick-bills {
+          grid-template-columns: repeat(3, 1fr);
+        }
+
+        .admin-row {
+          grid-template-columns: 1fr;
+        }
+
+        .pin-box {
+          grid-template-columns: 1fr;
+          width: 100%;
+        }
       }
     `}</style>
   );
