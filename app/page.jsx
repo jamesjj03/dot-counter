@@ -36,6 +36,13 @@ const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const CLOUD_STATE_ID = "main";
 const supabase = SUPABASE_URL && SUPABASE_ANON_KEY ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 
+function withTimeout(promise, ms, fallback = null) {
+  return Promise.race([
+    promise,
+    new Promise((resolve) => setTimeout(() => resolve(fallback), ms)),
+  ]);
+}
+
 const DEFAULT_APP = {
   areas: [],
   activeAreaId: null,
@@ -63,7 +70,21 @@ const DOT_PRESETS = [
 ];
 
 function uid() {
-  return crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  const cryptoObj =
+    (typeof window !== "undefined" && window.crypto) ||
+    (typeof self !== "undefined" && self.crypto) ||
+    null;
+
+  if (cryptoObj && typeof cryptoObj.getRandomValues === "function") {
+    const bytes = new Uint8Array(16);
+    cryptoObj.getRandomValues(bytes);
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+  }
+
+  return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
 function openDb() {
@@ -507,33 +528,55 @@ export default function DDMSharksOps() {
   }), []);
 
   useEffect(() => {
-    async function boot() {
-      setSaveStatus("loading-cloud");
-      const [local, cloud] = await Promise.all([loadDb(), loadCloudState()]);
-      if (local?.areas?.length) setLocalCandidate({ ...DEFAULT_APP, ...local });
+    let cancelled = false;
 
-      if (supabase) {
-        if (cloud && Object.keys(cloud).length) {
-          applyCloudState(cloud, false);
-          setSaveStatus("cloud-live");
-          setLastCloudLoad(new Date());
+    async function boot() {
+      try {
+        setSaveStatus("loading-cloud");
+
+        const [local, cloud] = await Promise.all([
+          withTimeout(loadDb().catch(() => null), 2500, null),
+          withTimeout(loadCloudState().catch(() => null), 4500, null),
+        ]);
+
+        if (cancelled) return;
+
+        if (local?.areas?.length) setLocalCandidate({ ...DEFAULT_APP, ...local });
+
+        if (supabase) {
+          if (cloud && Object.keys(cloud).length) {
+            applyCloudState(cloud, false);
+            setSaveStatus("cloud-live");
+            setCloudError("");
+            setLastCloudLoad(new Date());
+          } else {
+            setApp(DEFAULT_APP);
+            setSaveStatus("cloud-empty");
+            setCloudError("Cloud loaded, but no shared map data is saved yet.");
+          }
+        } else if (local?.areas?.length) {
+          setApp({ ...DEFAULT_APP, ...local });
+          setSaveStatus("local-only");
+          setCloudError("Missing Supabase environment variables.");
         } else {
           setApp(DEFAULT_APP);
-          setSaveStatus("cloud-empty");
+          setSaveStatus("local-empty");
+          setCloudError("Missing Supabase environment variables.");
         }
-      } else if (local?.areas?.length) {
-        setApp({ ...DEFAULT_APP, ...local });
-        setSaveStatus("local-only");
-        setCloudError("Missing Supabase environment variables.");
-      } else {
-        setSaveStatus("local-empty");
-        setCloudError("Missing Supabase environment variables.");
+      } catch (err) {
+        console.error("Boot failed:", err);
+        if (!cancelled) {
+          setApp(DEFAULT_APP);
+          setSaveStatus("cloud-error");
+          setCloudError(err?.message || "App boot failed, but the screen was unlocked.");
+        }
+      } finally {
+        if (!cancelled) setLoaded(true);
       }
-
-      setLoaded(true);
     }
 
     boot();
+    return () => { cancelled = true; };
   }, [applyCloudState]);
 
   useEffect(() => {
@@ -648,9 +691,19 @@ export default function DDMSharksOps() {
   };
 
   const createArea = () => {
-    if (!admin || !newAreaName.trim()) return;
-    const area = { id: uid(), name: newAreaName.trim(), screenshots: [], turfs: [], createdAt: new Date().toISOString() };
-    setApp((prev) => ({ ...prev, areas: [area, ...prev.areas], activeAreaId: area.id, activeShotId: null }));
+    const name = newAreaName.trim();
+    if (!admin) {
+      setCloudError("Admin is locked. Tap Admin and enter the PIN first.");
+      return;
+    }
+    if (!name) {
+      setCloudError("Type an area name first.");
+      return;
+    }
+
+    const area = { id: uid(), name, screenshots: [], turfs: [], createdAt: new Date().toISOString() };
+    setApp((prev) => ({ ...prev, areas: [area, ...(prev.areas || [])], activeAreaId: area.id, activeShotId: null }));
+    setCloudError("");
     setNewAreaName("");
     setMode("upload");
   };
@@ -680,19 +733,66 @@ export default function DDMSharksOps() {
         ctx.drawImage(img, 0, 0, width, height);
         resolve({ id: uid(), name: file.name, dataUrl: canvas.toDataURL("image/jpeg", 0.92), width, height, detections: detectAll(canvas, app.options), createdAt: new Date().toISOString() });
       };
+      img.onerror = () => {
+        console.error("Image load failed for upload:", file.name);
+        resolve(null);
+      };
       img.src = reader.result;
     };
+    reader.onerror = () => resolve(null);
     reader.readAsDataURL(file);
   });
 
   const upload = (files) => {
-    if (!admin || !activeArea || !files?.length) return;
-    Promise.all(Array.from(files).map(fileToShot)).then((shots) => {
-      setApp((prev) => ({
-        ...prev,
-        activeShotId: shots[0]?.id || prev.activeShotId,
-        areas: prev.areas.map((a) => a.id === activeArea.id ? { ...a, screenshots: [...(a.screenshots || []), ...shots] } : a),
-      }));
+    if (!admin) {
+      setCloudError("Admin is locked. Tap Admin and enter the PIN before uploading.");
+      return;
+    }
+    const picked = Array.from(files || []);
+    if (!picked.length) {
+      setCloudError("No file selected.");
+      return;
+    }
+
+    setCloudError("Uploading image...");
+
+    Promise.all(picked.map(fileToShot)).then((rawShots) => {
+      const shots = rawShots.filter(Boolean);
+      if (!shots.length) {
+        setCloudError("Upload failed. On iPad, use a normal screenshot/photo saved as PNG or JPG.");
+        return;
+      }
+
+      setApp((prev) => {
+        const areas = prev.areas || [];
+        let targetAreaId = prev.activeAreaId || areas[0]?.id || null;
+        let nextAreas = areas;
+
+        if (!targetAreaId) {
+          const newUploadArea = {
+            id: uid(),
+            name: "Uploaded Area",
+            screenshots: [],
+            turfs: [],
+            createdAt: new Date().toISOString(),
+          };
+          targetAreaId = newUploadArea.id;
+          nextAreas = [newUploadArea, ...areas];
+        }
+
+        return {
+          ...prev,
+          activeAreaId: targetAreaId,
+          activeShotId: shots[0]?.id || prev.activeShotId,
+          areas: nextAreas.map((a) =>
+            a.id === targetAreaId
+              ? { ...a, screenshots: [...(a.screenshots || []), ...shots] }
+              : a
+          ),
+        };
+      });
+
+      setCloudError("");
       setMode("count");
     });
   };
@@ -812,11 +912,45 @@ export default function DDMSharksOps() {
 
   const getCanvasPoint = (e) => {
     const canvas = overlayRef.current;
+    if (!canvas) return { x: 0, y: 0 };
+
+    const source =
+      e?.touches?.[0] ||
+      e?.changedTouches?.[0] ||
+      e?.nativeEvent?.touches?.[0] ||
+      e?.nativeEvent?.changedTouches?.[0] ||
+      e;
+
     const rect = canvas.getBoundingClientRect();
     return {
-      x: (e.clientX - rect.left) * (canvas.width / rect.width),
-      y: (e.clientY - rect.top) * (canvas.height / rect.height),
+      x: (source.clientX - rect.left) * (canvas.width / rect.width),
+      y: (source.clientY - rect.top) * (canvas.height / rect.height),
     };
+  };
+
+  const handleMapTap = (e) => {
+    if (e?.type?.startsWith("touch")) e.preventDefault();
+    canvasClick(e);
+  };
+
+  const handlePointerOrMouseDown = (e) => {
+    startSwipe(e);
+    startDrag(e);
+  };
+
+  const handleTouchStart = (e) => {
+    startSwipe(e.touches?.[0] || e);
+    startDrag(e);
+  };
+
+  const handleTouchMove = (e) => {
+    if (dragState || editMode) e.preventDefault();
+    moveDrag(e);
+  };
+
+  const handleTouchEnd = (e) => {
+    stopDrag(e);
+    endSwipe(e.changedTouches?.[0] || e);
   };
 
   const canvasClick = (e) => {
@@ -992,7 +1126,7 @@ export default function DDMSharksOps() {
               <AreaDeck areas={app.areas} switchArea={switchArea} setMode={setMode} admin={admin} />
             ) : (
               <>
-                <MapPanel fileRef={fileRef} upload={upload} activeShot={activeShot} canvasRef={canvasRef} overlayRef={overlayRef} canvasClick={canvasClick} mode={mode} showDots={showDots} setShowDots={setShowDots} showTurf={showTurf} setShowTurf={setShowTurf} showSold={showSold} setShowSold={setShowSold} uploadEnabled={admin} startDrag={startDrag} moveDrag={moveDrag} stopDrag={stopDrag} editMode={editMode} startSwipe={startSwipe} endSwipe={endSwipe} />
+                <MapPanel fileRef={fileRef} upload={upload} activeShot={activeShot} canvasRef={canvasRef} overlayRef={overlayRef} canvasClick={handleMapTap} mode={mode} showDots={showDots} setShowDots={setShowDots} showTurf={showTurf} setShowTurf={setShowTurf} showSold={showSold} setShowSold={setShowSold} uploadEnabled={admin} startDrag={handlePointerOrMouseDown} moveDrag={moveDrag} stopDrag={stopDrag} editMode={editMode} startSwipe={startSwipe} endSwipe={endSwipe} handleTouchStart={handleTouchStart} handleTouchMove={handleTouchMove} handleTouchEnd={handleTouchEnd} />
                 <TurfLegend turfs={visibleTurfs} />
               </>
             )}
@@ -1099,7 +1233,7 @@ function Header({ mode, setMode, admin }) {
       <div className="mx-auto flex max-w-6xl flex-col items-center gap-3">
         <div>
           <div className="mx-auto mb-2 inline-flex items-center gap-2 rounded-full bg-[#3b0f0f] px-3 py-1 text-[10px] font-black uppercase tracking-widest text-[#ff6b5f] ring-1 ring-red-500/30 sm:text-xs">
-            <Flame className="h-3.5 w-3.5" /> cloud sync live
+            <Flame className="h-3.5 w-3.5" /> IPAD FIX v4 LIVE • CLOUD SYNC
           </div>
           <h1 className="text-3xl font-black tracking-[-0.07em] sm:text-5xl lg:text-6xl">
             <span className="bg-gradient-to-r from-[#f7f3ea] via-[#f5c542] to-[#ef4444] bg-clip-text text-transparent">DDM SHARKS</span>
@@ -1122,7 +1256,7 @@ function Panel({ children }) {
 }
 
 function Board({ totals, activeArea, activeShot, saveStatus, cloudError, lastCloudLoad, lastCloudSave, refreshFromCloudNow }) {
-  const statusText = saveStatus?.replaceAll("-", " ") || "loading";
+  const statusText = (saveStatus || "loading").replace(/-/g, " ");
   const timeText = lastCloudSave ? `saved ${lastCloudSave.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : lastCloudLoad ? `loaded ${lastCloudLoad.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : "waiting";
 
   return (
@@ -1165,7 +1299,7 @@ function Admin({ admin, pin, setPin, unlock, exportData, resetData, compact, loc
   if (!admin && !open) {
     return (
       <div className="text-center">
-        <button onClick={() => setOpen(true)} className="rounded-full border border-[#f5c542]/10 bg-black/20 px-3 py-1.5 text-[11px] font-black uppercase tracking-widest text-white/25 hover:text-[#f5c542]">
+        <button onClick={() => setOpen(true)} className="rounded-full border border-[#f5c542]/30 bg-black/45 px-4 py-2 text-xs font-black uppercase tracking-widest text-[#f5c542]/70 hover:text-[#f5c542]">
           Admin
         </button>
       </div>
@@ -1261,8 +1395,119 @@ function ViewerNav({ areas, activeArea, activeShot, selectedRep, setSelectedRep,
   );
 }
 
-function Areas({ areas, activeArea, activeShot, switchArea, switchShot, newAreaName, setNewAreaName, createArea, deleteArea, admin }) { return <Panel><h2 className="mb-4 flex items-center text-2xl font-black"><Map className="mr-2 h-6 w-6 text-[#b8860b]" /> Areas</h2>{admin && <div className="mb-4 grid grid-cols-[1fr_auto] gap-2"><input value={newAreaName} onChange={(e) => setNewAreaName(e.target.value)} placeholder="New area" className="rounded-2xl border-2 border-[#f5c542]/15 px-5 py-4 text-lg font-black outline-none" /><button onClick={createArea} className="rounded-2xl bg-black px-5 text-[#f5c542]"><FolderPlus className="h-6 w-6" /></button></div>}<div className="space-y-3">{areas.map((a) => <div key={a.id} className={`rounded-3xl border-2 p-4 ${activeArea?.id === a.id ? "border-[#f5c542] bg-[#3a2a14]" : "border-[#f5c542]/15 bg-[#2b2118]"}`}><div className="flex justify-between gap-3"><button onClick={() => switchArea(a.id)} className="text-left text-xl font-black">{a.name}</button>{admin && <button onClick={() => deleteArea(a.id)} className="text-red-300"><Trash2 /></button>}</div><p className="font-bold text-white/50">{a.screenshots?.length || 0} screenshots • {a.turfs?.length || 0} zones</p></div>)}</div>{activeArea?.screenshots?.length > 0 && <div className="mt-5 space-y-2"><p className="text-sm font-black uppercase tracking-widest text-white/40">Screenshots</p>{activeArea.screenshots.map((s, i) => <button key={s.id} onClick={() => switchShot(s.id)} className={`w-full rounded-2xl px-4 py-3 text-left text-lg font-black ${activeShot?.id === s.id ? "bg-black text-[#f5c542]" : "bg-white/[0.08]"}`}>{i + 1}. {s.name}</button>)}</div>}</Panel>; }
-function UploadBox({ fileRef, upload, admin }) { return <Panel><h2 className="mb-4 flex items-center text-2xl font-black"><Upload className="mr-2" /> Upload</h2><input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => upload(e.target.files)} /><button disabled={!admin} onClick={() => fileRef.current?.click()} className="flex w-full items-center justify-center rounded-2xl bg-black px-5 py-5 text-xl font-black text-[#f5c542] disabled:opacity-40"><ImageIcon className="mr-2" /> Upload Screenshots</button></Panel>; }
+function Areas({ areas, activeArea, activeShot, switchArea, switchShot, newAreaName, setNewAreaName, createArea, deleteArea, admin }) {
+  const submitArea = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    createArea();
+  };
+
+  return (
+    <Panel>
+      <h2 className="mb-3 flex items-center text-xl font-black"><Map className="mr-2 h-5 w-5 text-[#b8860b]" /> Areas</h2>
+
+      <form onSubmit={submitArea} className="mb-4 rounded-2xl border border-[#f5c542]/20 bg-black/25 p-3">
+        <p className="mb-2 text-xs font-black uppercase tracking-widest text-[#f5c542]/70">Create Area</p>
+        <input
+          value={newAreaName}
+          onChange={(e) => setNewAreaName(e.target.value)}
+          placeholder="New area name"
+          autoComplete="off"
+          className="mb-2 w-full rounded-xl border-2 border-[#f5c542]/30 bg-black/50 px-4 py-4 text-base font-black text-white outline-none placeholder:text-white/35 focus:border-[#f5c542]"
+        />
+        <button
+          type="submit"
+          className="flex w-full items-center justify-center rounded-xl bg-gradient-to-r from-[#f5c542] to-[#d4af37] px-4 py-4 text-base font-black text-black shadow-lg shadow-[#f5c542]/20 active:scale-[.99]"
+        >
+          <FolderPlus className="mr-2 h-5 w-5" /> {admin ? "Create Area" : "Unlock Admin to Create"}
+        </button>
+      </form>
+
+      <div className="space-y-2">
+        {areas.map((a) => (
+          <div key={a.id} className={`rounded-2xl border p-3 ${activeArea?.id === a.id ? "border-[#f5c542] bg-[#3a2a14]" : "border-[#f5c542]/15 bg-[#2b2118]"}`}>
+            <div className="flex justify-between gap-2">
+              <button type="button" onClick={() => switchArea(a.id)} className="min-w-0 flex-1 text-left text-base font-black">
+                <span className="block truncate">{a.name}</span>
+              </button>
+              {admin && <button type="button" onClick={() => deleteArea(a.id)} className="rounded-xl bg-red-950/70 px-3 py-2 text-red-300"><Trash2 className="h-4 w-4" /></button>}
+            </div>
+            <p className="mt-1 text-sm font-bold text-white/50">{a.screenshots?.length || 0} screenshots • {a.turfs?.length || 0} zones</p>
+          </div>
+        ))}
+      </div>
+
+      {activeArea?.screenshots?.length > 0 && (
+        <div className="mt-4 space-y-2">
+          <p className="text-xs font-black uppercase tracking-widest text-white/35">Screenshots</p>
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {activeArea.screenshots.map((s, i) => (
+              <button key={s.id} type="button" onClick={() => switchShot(s.id)} className={`shrink-0 rounded-xl px-3 py-2 text-sm font-black ${activeShot?.id === s.id ? "bg-[#ef4444] text-white" : "bg-white/[0.08] text-white/75"}`}>SS {i + 1}</button>
+            ))}
+          </div>
+        </div>
+      )}
+    </Panel>
+  );
+}
+
+
+function IpadFileInput({ children, multiple = true, capture = undefined, onFiles, disabled = false, className = "" }) {
+  const inputId = useMemo(() => `file-${uid()}`, []);
+
+  return (
+    <div className={`w-full rounded-2xl border-2 border-[#f5c542]/30 bg-black/55 p-4 shadow-lg ${disabled ? "opacity-50" : ""}`}>
+      <label htmlFor={inputId} className={`mb-3 flex w-full cursor-pointer items-center justify-center rounded-xl px-4 py-4 text-base font-black shadow-lg ${className}`}>
+        {children}
+      </label>
+      <input
+        id={inputId}
+        type="file"
+        accept="image/*,.png,.jpg,.jpeg,.heic,.heif"
+        multiple={multiple}
+        capture={capture}
+        disabled={disabled}
+        onChange={(e) => {
+          onFiles(e.target.files);
+          e.target.value = "";
+        }}
+        className="block w-full cursor-pointer rounded-xl border-2 border-white/30 bg-white px-3 py-4 text-sm font-black text-black file:mr-3 file:rounded-lg file:border-0 file:bg-black file:px-4 file:py-3 file:text-sm file:font-black file:text-[#f5c542]"
+      />
+      <p className="mt-2 text-center text-xs font-black text-[#f5c542]/80">Old iPad fallback: tap the white Choose File box above.</p>
+    </div>
+  );
+}
+
+function NativeUploadStack({ upload, disabled = false }) {
+  return (
+    <div className="mx-auto grid w-full max-w-md gap-3 rounded-3xl border-2 border-red-500/35 bg-red-950/20 p-4 shadow-2xl shadow-red-950/30">
+      <div className="rounded-2xl bg-black/60 p-3 text-center text-xs font-black uppercase tracking-widest text-[#ff6b5f] ring-1 ring-red-500/25">
+        IPAD FIX v4 LIVE
+      </div>
+      <IpadFileInput disabled={disabled} onFiles={upload} className="bg-[#f5c542] text-black">
+        <ImageIcon className="mr-2 h-5 w-5" /> Choose Screenshot / Camera Roll
+      </IpadFileInput>
+      <IpadFileInput disabled={disabled} multiple={false} capture="environment" onFiles={upload} className="bg-gradient-to-r from-red-700 to-red-500 text-white">
+        <ImageIcon className="mr-2 h-5 w-5" /> Take Photo
+      </IpadFileInput>
+      <p className="text-center text-xs font-bold text-white/45">PNG/JPG screenshots work best. HEIC may fail on older iPads.</p>
+    </div>
+  );
+}
+
+function UploadBox({ upload, admin }) {
+  return (
+    <Panel>
+      <h2 className="mb-3 flex items-center text-xl font-black"><Upload className="mr-2 h-5 w-5" /> Upload</h2>
+      <p className="mb-3 rounded-xl bg-white/[0.08] p-3 text-sm font-bold text-white/60">
+        iPad-safe upload. This uses real native file inputs, not hidden button tricks.
+      </p>
+      {!admin && <p className="mb-3 rounded-xl bg-red-950/50 p-3 text-sm font-black text-red-200">Admin is locked. Unlock first, then upload.</p>}
+      <NativeUploadStack upload={upload} disabled={!admin} />
+    </Panel>
+  );
+}
+
 function AutoBox({ assignments, setAssignments, totals, autoThis, autoArea, admin }) { const total = assignments.reduce((s, a) => s + Number(a.percent || 0), 0); const update = (i, field, value) => setAssignments(assignments.map((a, idx) => idx === i ? { ...a, [field]: value } : a)); return <Panel><h2 className="mb-4 flex items-center text-2xl font-black"><Percent className="mr-2 text-[#b8860b]" /> Auto Split</h2><p className="mb-4 rounded-2xl bg-[#f5c542] p-4 text-lg font-black">{totals.leads} leads • {total}% assigned</p><div className="space-y-4">{assignments.map((a, i) => <div key={i} className="rounded-3xl bg-white/[0.08] p-4"><div className="mb-3 grid grid-cols-[1fr_auto_auto] gap-2"><select value={a.rep} onChange={(e) => update(i, "rep", e.target.value)} className="rounded-2xl px-4 py-3 text-lg font-black">{REPS.map((r) => <option key={r}>{r}</option>)}</select><span className="rounded-2xl bg-[#2b2118] px-4 py-3 text-lg font-black">{a.percent}%</span><button onClick={() => setAssignments(assignments.filter((_, idx) => idx !== i))} className="rounded-2xl bg-red-950/70 px-4 text-red-300"><Trash2 /></button></div><input type="range" min="0" max="100" step="5" value={a.percent} onChange={(e) => update(i, "percent", Number(e.target.value))} className="w-full accent-[#b8860b]" /></div>)}</div><div className="mt-4 grid grid-cols-3 gap-2"><button onClick={() => setAssignments([...assignments, { rep: REPS[0], percent: 0 }])} className="rounded-2xl bg-white/10 py-4 text-lg font-black">Add</button><button disabled={!admin} onClick={autoThis} className="rounded-2xl bg-black py-4 text-lg font-black text-[#f5c542] disabled:opacity-40">This SS</button><button disabled={!admin} onClick={autoArea} className="rounded-2xl bg-[#f5c542] py-4 text-lg font-black disabled:opacity-40">Whole Area</button></div></Panel>; }
 function ManualBox({ manualRep, setManualRep, polygon, clear, saveManual, admin, editMode, setEditMode, selectedTurf, deleteSelected }) {
   return (
@@ -1286,10 +1531,9 @@ function ManualBox({ manualRep, setManualRep, polygon, clear, saveManual, admin,
 function RepFilter({ selectedRep, setSelectedRep }) { return <Panel><h2 className="mb-4 flex items-center text-2xl font-black"><Filter className="mr-2" /> Map Filter</h2><div className="grid grid-cols-2 gap-2">{["All", ...REPS].map((r) => <button key={r} onClick={() => setSelectedRep(r)} className={`rounded-2xl px-4 py-3 text-lg font-black ${selectedRep === r ? "bg-black text-[#f5c542]" : "bg-white/[0.08]"}`}>{r}</button>)}</div></Panel>; }
 function Tuning({ options, setOptions, reCount }) { return <Panel><h2 className="mb-4 flex items-center text-2xl font-black"><Wand2 className="mr-2" /> Tuning</h2><Slider label="Sensitivity" value={options.sensitivity} min={0} max={10} step={1} onChange={(v) => setOptions({ ...options, sensitivity: Number(v) })} /><Slider label="Dot Size" value={options.expectedDotArea} min={60} max={420} step={10} onChange={(v) => setOptions({ ...options, expectedDotArea: Number(v) })} /><button onClick={reCount} className="mt-4 w-full rounded-2xl bg-black py-4 text-xl font-black text-[#f5c542]">Recount</button></Panel>; }
 function Slider({ label, value, min, max, step, onChange }) { return <label className="mb-4 block"><div className="mb-2 flex justify-between text-lg font-black"><span>{label}</span><span>{value}</span></div><input type="range" min={min} max={max} step={step} value={value} onChange={(e) => onChange(e.target.value)} className="w-full accent-[#b8860b]" /></label>; }
-function MapPanel({ fileRef, upload, activeShot, canvasRef, overlayRef, canvasClick, mode, showDots, setShowDots, showTurf, setShowTurf, showSold, setShowSold, uploadEnabled, startDrag, moveDrag, stopDrag, editMode, startSwipe, endSwipe }) {
+function MapPanel({ fileRef, upload, activeShot, canvasRef, overlayRef, canvasClick, mode, showDots, setShowDots, showTurf, setShowTurf, showSold, setShowSold, uploadEnabled, startDrag, moveDrag, stopDrag, editMode, startSwipe, endSwipe, handleTouchStart, handleTouchMove, handleTouchEnd }) {
   return (
     <div className="rounded-[1.5rem] border border-[#f5c542]/15 bg-[#241a13]/90 p-3 text-[#f7f3ea] shadow-xl shadow-black/30 backdrop-blur-xl sm:p-4">
-      <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => upload(e.target.files)} />
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-xl font-black">{activeShot?.name || "No screenshot selected"}</p>
@@ -1299,21 +1543,38 @@ function MapPanel({ fileRef, upload, activeShot, canvasRef, overlayRef, canvasCl
           <button onClick={() => setShowDots(!showDots)} className="rounded-xl bg-black px-3 py-2 text-sm font-black text-[#f5c542]">{showDots ? <EyeOff className="mr-1 inline h-4 w-4" /> : <Eye className="mr-1 inline h-4 w-4" />}Dots</button>
           <button onClick={() => setShowTurf(!showTurf)} className="rounded-xl bg-black px-3 py-2 text-sm font-black text-[#f5c542]">{showTurf ? <EyeOff className="mr-1 inline h-4 w-4" /> : <Eye className="mr-1 inline h-4 w-4" />}Turf</button>
           <button onClick={() => setShowSold(!showSold)} className={`rounded-xl px-3 py-2 text-xs font-black ${showSold ? "bg-[#7f1d1d] text-white" : "bg-black/60 text-white/35"}`}>Sold {showSold ? "ON" : "OFF"}</button>
+          <span className="rounded-xl bg-red-950/50 px-3 py-2 text-xs font-black text-red-200 ring-1 ring-red-500/25">IPAD v4</span>
         </div>
       </div>
       <div
         onClick={canvasClick}
-        onPointerDown={startSwipe}
+        onMouseDown={startDrag}
+        onMouseMove={moveDrag}
+        onMouseUp={(e) => { stopDrag(e); endSwipe(e); }}
+        onMouseLeave={stopDrag}
+        onPointerDown={startDrag}
         onPointerMove={moveDrag}
-        onPointerUp={(e) => { stopDrag(); endSwipe(e); }}
+        onPointerUp={(e) => { stopDrag(e); endSwipe(e); }}
         onPointerCancel={stopDrag}
         onPointerLeave={stopDrag}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        onTouchCancel={stopDrag}
         onDrop={(e) => { e.preventDefault(); if (uploadEnabled) upload(e.dataTransfer.files); }}
         onDragOver={(e) => e.preventDefault()}
         className={`relative grid min-h-[560px] touch-none place-items-center overflow-auto rounded-[1.25rem] border-2 border-dashed border-[#f5c542]/20 bg-black/35 sm:min-h-[650px] ${mode === "manual" || mode === "erase" ? "cursor-crosshair" : ""}`}
         style={{ touchAction: "none" }}
       >
-        {!activeShot && <div className="p-10 text-center"><Upload className="mx-auto mb-4 h-14 w-14" /><h2 className="text-3xl font-black">Upload screenshots for this area</h2></div>}
+        {!activeShot && (
+          <div className="p-8 text-center">
+            <Upload className="mx-auto mb-4 h-14 w-14" />
+            <h2 className="text-3xl font-black">Upload screenshots for this area</h2>
+            <div className="mt-5">
+              <NativeUploadStack upload={upload} disabled={!uploadEnabled} />
+            </div>
+          </div>
+        )}
         <div className={activeShot ? "relative max-w-full" : "hidden"}>
           <canvas ref={canvasRef} className="block max-w-full rounded-2xl" />
           <canvas ref={overlayRef} onPointerDown={startDrag} className="absolute left-0 top-0 block max-w-full touch-none rounded-2xl" style={{ touchAction: "none" }} />
