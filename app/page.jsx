@@ -311,9 +311,19 @@ function polygonBounds(points) {
   return { minX: Math.min(...xs), minY: Math.min(...ys), maxX: Math.max(...xs), maxY: Math.max(...ys) };
 }
 
+const REP_COLORS = {
+  JJ: "#f5c542",
+  Sam: "#ef4444",
+  Zack: "#3b82f6",
+  Dylan: "#22c55e",
+  Julian: "#a855f7",
+  Chris: "#f97316",
+  Christian: "#06b6d4",
+  Jacob: "#ec4899",
+};
+
 function repColor(rep) {
-  const colors = ["#d4af37", "#111827", "#7c3aed", "#c2410c", "#15803d", "#0369a1", "#be185d", "#a16207"];
-  return colors[Math.abs(rep.split("").reduce((s, c) => s + c.charCodeAt(0), 0)) % colors.length];
+  return REP_COLORS[rep] || "#ffffff";
 }
 
 function distance(a, b) {
@@ -457,6 +467,7 @@ export default function DDMSharksOps() {
   const [editMode, setEditMode] = useState(false);
   const [selectedTurfId, setSelectedTurfId] = useState(null);
   const [dragState, setDragState] = useState(null);
+  const [swipeStart, setSwipeStart] = useState(null);
   const [saveStatus, setSaveStatus] = useState("booting");
   const [cloudError, setCloudError] = useState("");
   const [lastCloudLoad, setLastCloudLoad] = useState(null);
@@ -542,6 +553,10 @@ export default function DDMSharksOps() {
     return () => clearInterval(interval);
   }, [loaded, admin]);
 
+  useEffect(() => {
+    if (!admin && !["manual", "team"].includes(mode)) setMode("manual");
+  }, [admin, mode]);
+
   const activeArea = useMemo(() => app.areas.find((a) => a.id === app.activeAreaId) || app.areas[0] || null, [app]);
   const activeShot = useMemo(() => activeArea?.screenshots?.find((s) => s.id === app.activeShotId) || activeArea?.screenshots?.[0] || null, [activeArea, app.activeShotId]);
   const detections = activeShot?.detections || { lead: [], pink: [] };
@@ -580,6 +595,24 @@ export default function DDMSharksOps() {
     setSelectedTurfId(null);
     setDragState(null);
     setApp((prev) => ({ ...prev, activeShotId: shotId }));
+  };
+
+  const stepArea = (direction) => {
+    const areas = app.areas || [];
+    if (!areas.length) return;
+    const currentIndex = Math.max(0, areas.findIndex((a) => a.id === activeArea?.id));
+    const nextIndex = (currentIndex + direction + areas.length) % areas.length;
+    switchArea(areas[nextIndex].id);
+    setMode("manual");
+  };
+
+  const stepShot = (direction) => {
+    const shots = activeArea?.screenshots || [];
+    if (!shots.length) return;
+    const currentIndex = Math.max(0, shots.findIndex((ss) => ss.id === activeShot?.id));
+    const nextIndex = (currentIndex + direction + shots.length) % shots.length;
+    switchShot(shots[nextIndex].id);
+    setMode("manual");
   };
 
   const createArea = () => {
@@ -841,6 +874,22 @@ export default function DDMSharksOps() {
     setDragState(null);
   };
 
+  const startSwipe = (e) => {
+    if (dragState || editMode) return;
+    setSwipeStart({ x: e.clientX, y: e.clientY, time: Date.now() });
+  };
+
+  const endSwipe = (e) => {
+    if (!swipeStart || dragState || editMode) return;
+    const dx = e.clientX - swipeStart.x;
+    const dy = e.clientY - swipeStart.y;
+    const fastEnough = Date.now() - swipeStart.time < 850;
+    setSwipeStart(null);
+
+    if (!fastEnough || Math.abs(dx) < 70 || Math.abs(dx) < Math.abs(dy) * 1.3) return;
+    stepShot(dx < 0 ? 1 : -1);
+  };
+
   const drawOverlay = useCallback(() => {
     const overlay = overlayRef.current;
     if (!overlay) return;
@@ -880,26 +929,38 @@ export default function DDMSharksOps() {
       <SharkBg />
       <section className="relative mx-auto max-w-[1540px] px-3 py-4 sm:px-6 lg:px-8">
         <Header mode={mode} setMode={setMode} admin={admin} />
-        <div className="grid gap-4 xl:grid-cols-[400px_1fr]">
-          <aside className="space-y-4">
+        <ViewerNav
+          areas={app.areas}
+          activeArea={activeArea}
+          activeShot={activeShot}
+          selectedRep={selectedRep}
+          setSelectedRep={setSelectedRep}
+          switchArea={switchArea}
+          switchShot={switchShot}
+          stepArea={stepArea}
+          stepShot={stepShot}
+          teamStats={teamStats}
+        />
+        <div className="grid gap-4 xl:grid-cols-[320px_1fr]">
+          <aside className="space-y-3 xl:sticky xl:top-4 xl:self-start">
             <Board totals={totals} activeArea={activeArea} activeShot={activeShot} saveStatus={saveStatus} cloudError={cloudError} lastCloudLoad={lastCloudLoad} lastCloudSave={lastCloudSave} refreshFromCloudNow={refreshFromCloudNow} />
             <Admin admin={admin} pin={pin} setPin={setPin} unlock={() => { if (pin.trim() === "6969") { setAdmin(true); setPin(""); } }} exportData={exportData} resetData={resetData} compact={!admin} localCandidate={localCandidate} publishLocalBackupToCloud={publishLocalBackupToCloud} />
             {admin && <Areas areas={app.areas} activeArea={activeArea} activeShot={activeShot} switchArea={switchArea} switchShot={switchShot} newAreaName={newAreaName} setNewAreaName={setNewAreaName} createArea={createArea} deleteArea={deleteArea} admin={admin} />}
             {mode === "upload" && admin && <UploadBox fileRef={fileRef} upload={upload} admin={admin} />}
             {mode === "auto" && admin && <AutoBox assignments={app.assignments} setAssignments={updateAssignments} totals={totals} autoThis={autoThis} autoArea={autoArea} admin={admin} />}
             {mode === "manual" && admin && <ManualBox manualRep={manualRep} setManualRep={setManualRep} polygon={polygon} clear={() => setPolygon([])} saveManual={saveManual} admin={admin} editMode={editMode} setEditMode={setEditMode} selectedTurf={selectedTurf} deleteSelected={() => selectedTurfId && deleteTurf(selectedTurfId)} />}
-            <RepFilter selectedRep={selectedRep} setSelectedRep={setSelectedRep} />
+            {admin && <RepFilter selectedRep={selectedRep} setSelectedRep={setSelectedRep} />}
             {mode === "count" && admin && <Tuning options={app.options} setOptions={updateOptions} reCount={reCount} />}
           </aside>
 
-          <section className="space-y-5">
+          <section className="space-y-4">
             {mode === "team" ? (
-              <TeamView teamStats={teamStats} teamRep={teamRep} setTeamRep={setTeamRep} teamTurfs={teamTurfs} admin={admin} deleteTurf={deleteTurf} />
-            ) : mode === "areas" ? (
+              <TeamView teamStats={teamStats} teamRep={teamRep} setTeamRep={setTeamRep} teamTurfs={teamTurfs} admin={admin} deleteTurf={deleteTurf} setSelectedRep={setSelectedRep} setMode={setMode} />
+            ) : mode === "areas" && admin ? (
               <AreaDeck areas={app.areas} switchArea={switchArea} setMode={setMode} admin={admin} />
             ) : (
               <>
-                <MapPanel fileRef={fileRef} upload={upload} activeShot={activeShot} canvasRef={canvasRef} overlayRef={overlayRef} canvasClick={canvasClick} mode={mode} showDots={showDots} setShowDots={setShowDots} showTurf={showTurf} setShowTurf={setShowTurf} uploadEnabled={admin} startDrag={startDrag} moveDrag={moveDrag} stopDrag={stopDrag} editMode={editMode} />
+                <MapPanel fileRef={fileRef} upload={upload} activeShot={activeShot} canvasRef={canvasRef} overlayRef={overlayRef} canvasClick={canvasClick} mode={mode} showDots={showDots} setShowDots={setShowDots} showTurf={showTurf} setShowTurf={setShowTurf} uploadEnabled={admin} startDrag={startDrag} moveDrag={moveDrag} stopDrag={stopDrag} editMode={editMode} startSwipe={startSwipe} endSwipe={endSwipe} />
                 <TurfLegend turfs={visibleTurfs} />
               </>
             )}
@@ -1002,21 +1063,20 @@ function Header({ mode, setMode, admin }) {
     : [["manual", <Map />, "Map"], ["team", <Users />, "Team"]];
 
   return (
-    <header className="mb-4 rounded-[1.75rem] border border-[#f5c542]/20 bg-[#211812]/90 p-4 text-center shadow-2xl shadow-black/30 backdrop-blur-xl sm:p-5">
-      <div className="mx-auto flex max-w-6xl flex-col items-center gap-4">
+    <header className="mb-3 rounded-[1.25rem] border border-[#f5c542]/15 bg-[#1b1410]/90 p-3 text-center shadow-xl shadow-black/30 backdrop-blur-xl sm:p-4">
+      <div className="mx-auto flex max-w-6xl flex-col items-center gap-3">
         <div>
-          <div className="mx-auto mb-3 inline-flex items-center gap-2 rounded-full bg-[#350d0d] px-3 py-1.5 text-xs font-black uppercase tracking-widest text-[#ff5b57] ring-1 ring-red-500/30 sm:text-sm">
-            <Flame className="h-4 w-4" /> live team turf command
+          <div className="mx-auto mb-2 inline-flex items-center gap-2 rounded-full bg-[#3b0f0f] px-3 py-1 text-[10px] font-black uppercase tracking-widest text-[#ff6b5f] ring-1 ring-red-500/30 sm:text-xs">
+            <Flame className="h-3.5 w-3.5" /> cloud sync live
           </div>
-          <h1 className="text-4xl font-black tracking-[-0.07em] sm:text-6xl lg:text-7xl">
-            <span className="bg-gradient-to-r from-[#f7f3ea] via-[#f5c542] to-[#ff4b4b] bg-clip-text text-transparent">DDM SHARKS</span>
+          <h1 className="text-3xl font-black tracking-[-0.07em] sm:text-5xl lg:text-6xl">
+            <span className="bg-gradient-to-r from-[#f7f3ea] via-[#f5c542] to-[#ef4444] bg-clip-text text-transparent">DDM SHARKS</span>
           </h1>
-          <p className="mx-auto mt-1 max-w-3xl text-sm font-bold text-[#f7f3ea]/55 sm:text-base">Black, gold, white, and red. Cloud-synced turf for the boys.</p>
         </div>
-        <div className={`grid w-full max-w-5xl gap-2 rounded-[1.25rem] bg-black/70 p-2 ${admin ? "grid-cols-3 sm:grid-cols-7" : "grid-cols-2"}`}>
+        <div className={`grid w-full max-w-4xl gap-1.5 rounded-2xl bg-black/70 p-1.5 ${admin ? "grid-cols-4 sm:grid-cols-7" : "grid-cols-2 sm:max-w-md"}`}>
           {tabs.map(([key, icon, label]) => (
-            <button key={key} onClick={() => setMode(key)} className={`flex min-h-10 items-center justify-center rounded-xl px-2 text-xs font-black transition sm:min-h-11 sm:text-sm ${mode === key ? "bg-[#f5c542] text-black shadow-lg shadow-[#f5c542]/20" : "text-white/75 hover:bg-[#2b2118]/10"}`}>
-              {React.cloneElement(icon, { className: "mr-1.5 h-4 w-4" })}{label}
+            <button key={key} onClick={() => setMode(key)} className={`flex min-h-9 items-center justify-center rounded-xl px-2 text-xs font-black transition sm:min-h-10 ${mode === key ? "bg-[#f5c542] text-black shadow-lg shadow-[#f5c542]/20" : "text-white/70 hover:bg-white/10"}`}>
+              {React.cloneElement(icon, { className: "mr-1 h-3.5 w-3.5" })}{label}
             </button>
           ))}
         </div>
@@ -1035,31 +1095,34 @@ function Board({ totals, activeArea, activeShot, saveStatus, cloudError, lastClo
 
   return (
     <Panel>
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-xs font-black uppercase tracking-[.22em] text-[#f5c542]/75">Active Board</p>
-          <p className="text-5xl font-black tracking-[-0.06em] text-white sm:text-6xl">{totals.total}</p>
-          <p className="text-sm font-bold text-white/50">{activeArea?.name || "No area"}{activeShot ? ` • ${activeShot.name}` : ""}</p>
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[10px] font-black uppercase tracking-[.2em] text-[#f5c542]/70">Active</p>
+          <p className="truncate text-sm font-black text-white/80">{activeArea?.name || "No area"}</p>
+          <p className="truncate text-xs font-bold text-white/40">{activeShot?.name || "No screenshot"}</p>
         </div>
-        <button onClick={refreshFromCloudNow} className="rounded-2xl bg-[#350d0d] p-3 text-[#ff5b57] ring-1 ring-red-500/25">
-          <Crosshair className="h-7 w-7" />
+        <button onClick={refreshFromCloudNow} className="shrink-0 rounded-xl bg-[#3b0f0f] px-3 py-2 text-xs font-black text-[#ff6b5f] ring-1 ring-red-500/25">
+          Sync
         </button>
       </div>
 
-      <div className="mt-4 grid grid-cols-2 gap-2">
-        <Stat label="Leads" value={totals.leads} gold />
-        <Stat label="Sold" value={totals.sold} pink />
+      <div className="mt-3 grid grid-cols-3 gap-2">
+        <MiniStat label="Leads" value={totals.leads} className="bg-[#f5c542] text-black" />
+        <MiniStat label="Sold" value={totals.sold} className="bg-[#ef4444] text-white" />
+        <MiniStat label="Total" value={totals.total} className="bg-black text-white" />
       </div>
 
-      <div className="mt-3 rounded-2xl border border-white/10 bg-black/30 p-3">
-        <div className="flex items-center justify-between gap-2">
-          <p className="text-xs font-black uppercase tracking-widest text-[#f5c542]">Sync: {statusText}</p>
-          <p className="text-xs font-bold text-white/45">{timeText}</p>
-        </div>
-        {cloudError && <p className="mt-1 text-xs font-bold text-red-300">{cloudError}</p>}
+      <div className="mt-3 rounded-xl border border-[#f5c542]/10 bg-black/25 px-3 py-2 text-xs font-bold text-white/45">
+        <span className={saveStatus === "cloud-error" ? "text-red-300" : "text-emerald-300"}>Sync: {statusText}</span>
+        <span className="mx-2">•</span>{timeText}
+        {cloudError && <p className="mt-1 text-red-300">{cloudError}</p>}
       </div>
     </Panel>
   );
+}
+
+function MiniStat({ label, value, className }) {
+  return <div className={`${className} rounded-xl p-2 text-center shadow-lg`}><p className="text-[10px] font-black uppercase opacity-70">{label}</p><p className="text-2xl font-black tracking-[-0.05em]">{value}</p></div>;
 }
 
 function Stat({ label, value, gold, pink }) {
@@ -1067,33 +1130,104 @@ function Stat({ label, value, gold, pink }) {
 }
 
 function Admin({ admin, pin, setPin, unlock, exportData, resetData, compact, localCandidate, publishLocalBackupToCloud }) {
+  const [open, setOpen] = useState(false);
+
+  if (!admin && !open) {
+    return (
+      <div className="text-center">
+        <button onClick={() => setOpen(true)} className="rounded-full border border-[#f5c542]/10 bg-black/20 px-3 py-1.5 text-[11px] font-black uppercase tracking-widest text-white/25 hover:text-[#f5c542]">
+          Admin
+        </button>
+      </div>
+    );
+  }
+
   return (
     <Panel>
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <h2 className="flex items-center text-lg font-black sm:text-xl"><Crown className="mr-2 h-5 w-5 text-[#f5c542]" /> Sam Admin</h2>
-        <span className={`rounded-full px-3 py-1.5 text-xs font-black ${admin ? "bg-[#f5c542] text-black" : "bg-red-950 text-red-200 ring-1 ring-red-500/25"}`}>{admin ? "Unlocked" : "Locked"}</span>
+      <div className="mb-3 flex items-center justify-between">
+        <h2 className="flex items-center text-lg font-black"><Crown className="mr-2 h-5 w-5 text-[#f5c542]" /> Admin</h2>
+        <span className={`rounded-full px-3 py-1 text-xs font-black ${admin ? "bg-[#f5c542] text-black" : "bg-black/40 text-white/60"}`}>{admin ? "Unlocked" : "Locked"}</span>
       </div>
-
       {!admin ? (
         <div className="space-y-2">
-          <input value={pin} onChange={(e) => setPin(e.target.value)} onKeyDown={(e) => e.key === "Enter" && unlock()} placeholder="Admin PIN" className="w-full rounded-xl border border-white/10 bg-black/35 px-4 py-3 text-base font-black text-white outline-none focus:border-[#f5c542]" />
-          <button onClick={unlock} className="w-full rounded-xl bg-[#f5c542] px-4 py-3 text-base font-black text-black">Unlock</button>
-          <p className="text-xs font-bold text-white/45">Viewers only see the map, team view, and filters.</p>
+          <input value={pin} onChange={(e) => setPin(e.target.value)} onKeyDown={(e) => e.key === "Enter" && unlock()} placeholder="PIN" className="w-full rounded-xl border border-[#f5c542]/15 bg-black/30 px-4 py-3 text-base font-black text-white outline-none focus:border-[#f5c542]" />
+          <div className="grid grid-cols-2 gap-2">
+            <button onClick={unlock} className="rounded-xl bg-[#f5c542] px-4 py-3 text-sm font-black text-black">Unlock</button>
+            <button onClick={() => setOpen(false)} className="rounded-xl bg-white/10 px-4 py-3 text-sm font-black text-white/70">Hide</button>
+          </div>
         </div>
       ) : (
-        <div className="space-y-2">
-          <div className="grid grid-cols-2 gap-2">
-            <button onClick={exportData} className="flex items-center justify-center rounded-xl bg-black px-4 py-3 text-sm font-black text-[#f5c542]"><Download className="mr-2 h-4 w-4" /> Export</button>
-            <button onClick={resetData} className="flex items-center justify-center rounded-xl bg-gradient-to-r from-red-700 to-red-500 px-4 py-3 text-sm font-black text-white"><RotateCcw className="mr-2 h-4 w-4" /> Reset</button>
-          </div>
-          {localCandidate?.areas?.length > 0 && (
-            <button onClick={publishLocalBackupToCloud} className="w-full rounded-xl bg-[#350d0d] px-4 py-3 text-sm font-black text-red-100 ring-1 ring-red-500/30">
-              Push This Device Backup To Cloud
-            </button>
-          )}
+        <div className="grid grid-cols-2 gap-2">
+          <button onClick={exportData} className="flex items-center justify-center rounded-xl bg-black px-3 py-3 text-sm font-black text-[#f5c542]"><Download className="mr-1.5 h-4 w-4" /> Export</button>
+          <button onClick={resetData} className="flex items-center justify-center rounded-xl bg-red-700 px-3 py-3 text-sm font-black text-white"><RotateCcw className="mr-1.5 h-4 w-4" /> Reset</button>
+          {localCandidate?.areas?.length ? <button onClick={publishLocalBackupToCloud} className="col-span-2 rounded-xl bg-[#f5c542] px-3 py-3 text-sm font-black text-black">Publish local backup</button> : null}
         </div>
       )}
     </Panel>
+  );
+}
+
+function ViewerNav({ areas, activeArea, activeShot, selectedRep, setSelectedRep, switchArea, switchShot, stepArea, stepShot, teamStats }) {
+  const shots = activeArea?.screenshots || [];
+  const repStats = teamStats.find((r) => r.rep === selectedRep) || null;
+
+  return (
+    <div className="mb-4">
+      <Panel>
+        <div className="grid gap-3 lg:grid-cols-[1fr_1fr_auto]">
+          <div>
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <p className="text-xs font-black uppercase tracking-widest text-[#f5c542]/70">Area</p>
+              <div className="flex gap-1.5">
+                <button onClick={() => stepArea(-1)} className="rounded-lg bg-black px-3 py-1.5 text-xs font-black text-[#f5c542]">‹</button>
+                <button onClick={() => stepArea(1)} className="rounded-lg bg-black px-3 py-1.5 text-xs font-black text-[#f5c542]">›</button>
+              </div>
+            </div>
+            <div className="flex gap-2 overflow-x-auto pb-1">
+              {(areas || []).map((a) => (
+                <button key={a.id} onClick={() => switchArea(a.id)} className={`shrink-0 rounded-xl px-3 py-2 text-sm font-black ${activeArea?.id === a.id ? "bg-[#f5c542] text-black" : "bg-white/[0.08] text-white/75"}`}>
+                  {a.name}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <p className="text-xs font-black uppercase tracking-widest text-[#f5c542]/70">Screenshots</p>
+              <div className="flex gap-1.5">
+                <button onClick={() => stepShot(-1)} className="rounded-lg bg-black px-3 py-1.5 text-xs font-black text-[#f5c542]">‹</button>
+                <button onClick={() => stepShot(1)} className="rounded-lg bg-black px-3 py-1.5 text-xs font-black text-[#f5c542]">›</button>
+              </div>
+            </div>
+            <div className="flex gap-2 overflow-x-auto pb-1">
+              {shots.map((ss, i) => (
+                <button key={ss.id} onClick={() => switchShot(ss.id)} className={`shrink-0 rounded-xl px-3 py-2 text-sm font-black ${activeShot?.id === ss.id ? "bg-[#ef4444] text-white" : "bg-white/[0.08] text-white/75"}`}>
+                  SS {i + 1}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="min-w-[220px]">
+            <p className="mb-2 text-xs font-black uppercase tracking-widest text-[#f5c542]/70">See Leads</p>
+            <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-5 lg:grid-cols-3">
+              {["All", ...REPS].map((r) => {
+                const active = selectedRep === r;
+                const stat = teamStats.find((x) => x.rep === r);
+                return (
+                  <button key={r} onClick={() => setSelectedRep(r)} className={`rounded-xl px-2 py-2 text-xs font-black ring-1 ${active ? "bg-[#f5c542] text-black ring-[#f5c542]" : "bg-black/40 text-white/70 ring-white/10"}`}>
+                    {r === "All" ? "All" : <><span className="mr-1 inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: repColor(r) }} />{r}</>}
+                    {stat && r !== "All" && <span className="ml-1 text-[10px] opacity-70">{stat.leads}</span>}
+                  </button>
+                );
+              })}
+            </div>
+            {selectedRep !== "All" && repStats && <p className="mt-2 text-xs font-bold text-white/45">{selectedRep}: {repStats.leads} leads • {repStats.sold} sold • {repStats.zones} zones</p>}
+          </div>
+        </div>
+      </Panel>
+    </div>
   );
 }
 
@@ -1122,7 +1256,7 @@ function ManualBox({ manualRep, setManualRep, polygon, clear, saveManual, admin,
 function RepFilter({ selectedRep, setSelectedRep }) { return <Panel><h2 className="mb-4 flex items-center text-2xl font-black"><Filter className="mr-2" /> Map Filter</h2><div className="grid grid-cols-2 gap-2">{["All", ...REPS].map((r) => <button key={r} onClick={() => setSelectedRep(r)} className={`rounded-2xl px-4 py-3 text-lg font-black ${selectedRep === r ? "bg-black text-[#f5c542]" : "bg-white/[0.08]"}`}>{r}</button>)}</div></Panel>; }
 function Tuning({ options, setOptions, reCount }) { return <Panel><h2 className="mb-4 flex items-center text-2xl font-black"><Wand2 className="mr-2" /> Tuning</h2><Slider label="Sensitivity" value={options.sensitivity} min={0} max={10} step={1} onChange={(v) => setOptions({ ...options, sensitivity: Number(v) })} /><Slider label="Dot Size" value={options.expectedDotArea} min={60} max={420} step={10} onChange={(v) => setOptions({ ...options, expectedDotArea: Number(v) })} /><button onClick={reCount} className="mt-4 w-full rounded-2xl bg-black py-4 text-xl font-black text-[#f5c542]">Recount</button></Panel>; }
 function Slider({ label, value, min, max, step, onChange }) { return <label className="mb-4 block"><div className="mb-2 flex justify-between text-lg font-black"><span>{label}</span><span>{value}</span></div><input type="range" min={min} max={max} step={step} value={value} onChange={(e) => onChange(e.target.value)} className="w-full accent-[#b8860b]" /></label>; }
-function MapPanel({ fileRef, upload, activeShot, canvasRef, overlayRef, canvasClick, mode, showDots, setShowDots, showTurf, setShowTurf, uploadEnabled, startDrag, moveDrag, stopDrag, editMode }) {
+function MapPanel({ fileRef, upload, activeShot, canvasRef, overlayRef, canvasClick, mode, showDots, setShowDots, showTurf, setShowTurf, uploadEnabled, startDrag, moveDrag, stopDrag, editMode, startSwipe, endSwipe }) {
   return (
     <div className="rounded-[1.5rem] border border-[#f5c542]/15 bg-[#241a13]/90 p-3 text-[#f7f3ea] shadow-xl shadow-black/30 backdrop-blur-xl sm:p-4">
       <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => upload(e.target.files)} />
@@ -1138,8 +1272,9 @@ function MapPanel({ fileRef, upload, activeShot, canvasRef, overlayRef, canvasCl
       </div>
       <div
         onClick={canvasClick}
+        onPointerDown={startSwipe}
         onPointerMove={moveDrag}
-        onPointerUp={stopDrag}
+        onPointerUp={(e) => { stopDrag(); endSwipe(e); }}
         onPointerCancel={stopDrag}
         onPointerLeave={stopDrag}
         onDrop={(e) => { e.preventDefault(); if (uploadEnabled) upload(e.dataTransfer.files); }}
@@ -1203,4 +1338,67 @@ function TurfLegend({ turfs }) {
 }
 
 function AreaDeck({ areas, switchArea, setMode, admin }) { return <Panel><h2 className="mb-5 flex items-center text-4xl font-black"><Layers className="mr-3 h-9 w-9" /> Areas Command Deck</h2>{areas.length === 0 ? <div className="rounded-3xl bg-white/[0.08] p-10 text-center"><h3 className="text-4xl font-black">No areas yet</h3><p className="mt-2 text-xl font-bold text-white/50">Unlock Sam Admin, create an area, upload screenshots.</p></div> : <div className="grid gap-4 lg:grid-cols-2">{areas.map((a) => { const leads = (a.screenshots || []).reduce((s, shot) => s + (shot.detections?.lead?.length || 0), 0); return <button key={a.id} onClick={() => { switchArea(a.id); setMode("count"); }} className="rounded-[2rem] bg-black p-6 text-left text-white shadow-xl transition hover:-translate-y-1"><h3 className="text-3xl font-black">{a.name}</h3><p className="mt-1 text-lg font-bold text-white/60">{a.screenshots?.length || 0} screenshots • {a.turfs?.length || 0} zones</p><p className="mt-5 text-7xl font-black text-[#f5c542]">{leads}</p><p className="text-sm font-black uppercase tracking-widest text-white/50">leads</p></button>; })}</div>}</Panel>; }
-function TeamView({ teamStats, teamRep, setTeamRep, teamTurfs, admin, deleteTurf }) { return <div className="space-y-5"><Panel><h2 className="mb-5 flex items-center text-4xl font-black"><Users className="mr-3 h-9 w-9" /> Team View</h2><div className="grid grid-cols-2 gap-3 md:grid-cols-4">{REPS.map((r) => <button key={r} onClick={() => setTeamRep(r)} className={`rounded-3xl p-5 text-xl font-black ${teamRep === r ? "bg-black text-[#f5c542]" : "bg-white/[0.08]"}`}>{r}</button>)}</div></Panel><Panel><h3 className="mb-4 text-3xl font-black">{teamRep}'s Turf</h3>{teamTurfs.length === 0 ? <p className="rounded-3xl bg-white/[0.08] p-8 text-center text-xl font-bold text-white/50">No turf assigned yet.</p> : <div className="grid gap-4 xl:grid-cols-2">{teamTurfs.map((t) => <div key={t.id} className="rounded-[2rem] bg-black p-5 text-white shadow-xl"><div className="mb-3 flex justify-between"><div><p className="text-2xl font-black">{t.areaName}</p><p className="font-bold text-white/50">{t.imageName}</p></div>{admin && <button onClick={() => deleteTurf(t.id)} className="text-red-300"><Trash2 /></button>}</div><div className="grid grid-cols-3 gap-2"><Stat label="Total" value={t.counts?.total || 0} /><Stat label="Leads" value={t.counts?.yellow || 0} gold /><Stat label="Sold" value={t.counts?.pink || 0} pink /></div></div>)}</div>}</Panel></div>; }
+function TeamView({ teamStats, teamRep, setTeamRep, teamTurfs, admin, deleteTurf, setSelectedRep, setMode }) {
+  const activeStats = teamStats.find((s) => s.rep === teamRep) || { leads: 0, sold: 0, zones: 0 };
+
+  return (
+    <div className="space-y-4">
+      <Panel>
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="flex items-center text-2xl font-black sm:text-3xl"><Users className="mr-2 h-7 w-7" /> Leads by Rep</h2>
+            <p className="text-sm font-bold text-white/45">Tap your name. This is the main view for the boys.</p>
+          </div>
+          <button onClick={() => { setSelectedRep(teamRep); setMode("manual"); }} className="rounded-xl bg-[#f5c542] px-4 py-2 text-sm font-black text-black">Open {teamRep}'s Map</button>
+        </div>
+        <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+          {REPS.map((r) => {
+            const stat = teamStats.find((s) => s.rep === r) || { leads: 0, sold: 0, zones: 0 };
+            return (
+              <button key={r} onClick={() => setTeamRep(r)} className={`rounded-2xl border p-3 text-left transition ${teamRep === r ? "border-[#f5c542] bg-black shadow-lg shadow-[#f5c542]/10" : "border-white/10 bg-white/[0.06]"}`}>
+                <div className="mb-2 flex items-center gap-2">
+                  <span className="h-4 w-4 rounded-full ring-2 ring-black" style={{ backgroundColor: repColor(r) }} />
+                  <span className="text-base font-black">{r}</span>
+                </div>
+                <p className="text-3xl font-black text-[#f5c542]">{stat.leads}</p>
+                <p className="text-xs font-bold text-white/45">leads • {stat.sold} sold • {stat.zones} zones</p>
+              </button>
+            );
+          })}
+        </div>
+      </Panel>
+
+      <Panel>
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <div>
+            <h3 className="text-2xl font-black" style={{ color: repColor(teamRep) }}>{teamRep}'s Turf</h3>
+            <p className="text-sm font-bold text-white/45">{activeStats.leads} leads • {activeStats.sold} sold • {activeStats.zones} zones</p>
+          </div>
+          <button onClick={() => { setSelectedRep(teamRep); setMode("manual"); }} className="rounded-xl bg-black px-4 py-2 text-sm font-black text-[#f5c542]">Map</button>
+        </div>
+        {teamTurfs.length === 0 ? (
+          <p className="rounded-2xl bg-white/[0.08] p-6 text-center text-base font-bold text-white/50">No turf assigned yet.</p>
+        ) : (
+          <div className="grid gap-3 xl:grid-cols-2">
+            {teamTurfs.map((t) => (
+              <div key={t.id} className="rounded-2xl border border-white/10 bg-black/60 p-4 text-white shadow-xl">
+                <div className="mb-3 flex justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-lg font-black">{t.areaName}</p>
+                    <p className="truncate text-xs font-bold text-white/45">{t.imageName}</p>
+                  </div>
+                  {admin && <button onClick={() => deleteTurf(t.id)} className="text-red-300"><Trash2 /></button>}
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <MiniStat label="Leads" value={t.counts?.yellow || 0} className="bg-[#f5c542] text-black" />
+                  <MiniStat label="Sold" value={t.counts?.pink || 0} className="bg-[#ef4444] text-white" />
+                  <MiniStat label="Total" value={t.counts?.total || 0} className="bg-white/10 text-white" />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </Panel>
+    </div>
+  );
+}
