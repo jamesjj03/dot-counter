@@ -101,7 +101,7 @@ const DEFAULT_SETTINGS = {
   billingSchedule: {
     enabled: true,
     title: "First 5 months",
-    note: "Compare the same stretch of time with the free-month promo included.",
+    note: "See the early promo value compared with the current bill.",
     giftCardAmount: 100,
     giftCardLabel: "$100 Visa gift card",
   },
@@ -464,6 +464,12 @@ export default function SalesPage() {
     setIsVerizonCustomer(false);
   };
 
+  const goStep = (nextStep) => {
+    setStep(nextStep);
+    try { window.scrollTo({ top: 0, behavior: "smooth" }); }
+    catch (e) { try { window.scrollTo(0, 0); } catch (err) {} }
+  };
+
   if (!loaded) {
     return (
       <main className="sales-shell">
@@ -536,17 +542,17 @@ export default function SalesPage() {
       ) : (
         <>
           <nav className="flow-nav">
-            <FlowButton step="fiber" active={step} setStep={setStep} label="1. Fiber" />
-            <FlowButton step="bill" active={step} setStep={setStep} label="2. Bill" />
-            <FlowButton step="plans" active={step} setStep={setStep} label="3. Plans" />
-            <FlowButton step="options" active={step} setStep={setStep} label="4. Options" />
-            <FlowButton step="savings" active={step} setStep={setStep} label="5. Savings" />
+            <FlowButton step="fiber" active={step} setStep={goStep} label="1. Fiber" />
+            <FlowButton step="bill" active={step} setStep={goStep} label="2. Bill" />
+            <FlowButton step="plans" active={step} setStep={goStep} label="3. Plans" />
+            <FlowButton step="options" active={step} setStep={goStep} label="4. Options" />
+            <FlowButton step="savings" active={step} setStep={goStep} label="5. Savings" />
           </nav>
 
           {step === "fiber" && (
             <FiberStep
               settings={settings}
-              setStep={setStep}
+              setStep={goStep}
             />
           )}
 
@@ -554,7 +560,7 @@ export default function SalesPage() {
             <BillStep
               currentBill={currentBill}
               setCurrentBill={setCurrentBill}
-              setStep={setStep}
+              setStep={goStep}
             />
           )}
 
@@ -565,7 +571,7 @@ export default function SalesPage() {
               setSelectedPlanId={setSelectedPlanId}
               defaultAddonTotal={getAddonsTotal(settings.addons, profile.defaultAddonIds)}
               profile={profile}
-              setStep={setStep}
+              setStep={goStep}
             />
           )}
 
@@ -579,7 +585,7 @@ export default function SalesPage() {
               isVerizonCustomer={isVerizonCustomer}
               setIsVerizonCustomer={setIsVerizonCustomer}
               verizonSavings={verizonSavings}
-              setStep={setStep}
+              setStep={goStep}
             />
           )}
 
@@ -599,7 +605,7 @@ export default function SalesPage() {
               threeYearSavings={threeYearSavings}
               applyGiftCard={applyGiftCard}
               setApplyGiftCard={setApplyGiftCard}
-              setStep={setStep}
+              setStep={goStep}
             />
           )}
 
@@ -629,7 +635,7 @@ function FiberStep({ settings, setStep }) {
           <div className="label-red">Home internet comparison</div>
           <h1>Same house. Cleaner connection.</h1>
           <p>
-            Show the difference without making anyone read a brochure.
+            A cleaner connection for streaming, gaming, work, and the whole house.
           </p>
         </div>
 
@@ -744,9 +750,9 @@ function BillStep({ currentBill, setCurrentBill, setStep }) {
     <section className="center-stage">
       <div className="big-card">
         <div className="label-red">Current bill</div>
-        <h1>What is the current bill?</h1>
+        <h1>Current monthly bill</h1>
         <p>
-          Enter the current monthly internet bill, then compare it against the new fiber quote.
+          Enter the current monthly internet bill to see the difference.
         </p>
 
         <div className="bill-input-wrap">
@@ -789,7 +795,7 @@ function PlansStep({ settings, selectedPlanId, setSelectedPlanId, defaultAddonTo
     <section className="plans-stage">
       <div className="section-heading">
         <div className="label-red">Plans</div>
-        <h1>Pick the plan that fits the home.</h1>
+        <h1>Choose a fiber plan.</h1>
         <p>Prices shown include the saved default package for this device.</p>
       </div>
 
@@ -937,7 +943,7 @@ function SavingsStep({
     <section className="savings-stage">
       <div className="savings-main">
         <div className="label-red">Savings</div>
-        <h1>Here is the clean comparison.</h1>
+        <h1>Here’s the monthly and long-term difference.</h1>
 
         <div className="monthly-small">
           <span>Monthly difference</span>
@@ -977,16 +983,16 @@ function SavingsStep({
 
             <div className="promo-total-grid">
               <div className="promo-total current">
-                <span>Current provider</span>
+                <span>Current bill total</span>
                 <strong>{money(currentFiveMonthTotal)}</strong>
                 <small>{money(currentMonthly)} × 5 months</small>
               </div>
 
               <div className="promo-total frontier">
-                <span>Fiber promo period</span>
+                <span>Fiber with promo</span>
                 <strong>{money(promoAfterGift)}</strong>
                 <small>
-                  Two $0 bills, add-ons bill, then regular quote bills
+                  Promo savings included
                 </small>
               </div>
             </div>
@@ -1002,14 +1008,14 @@ function SavingsStep({
             </button>
 
             <div className="promo-result">
-              <span>Difference over first 5 months</span>
+              <span>First 5 months savings</span>
               <strong>{money(promoSavingsVsCurrent)}</strong>
             </div>
           </div>
         )}
 
         <button className="secondary-action" onClick={() => setStep("bill")}>
-          Change bill
+          Edit bill
         </button>
       </div>
 
