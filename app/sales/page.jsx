@@ -100,8 +100,8 @@ const DEFAULT_SETTINGS = {
   ],
   billingSchedule: {
     enabled: true,
-    title: "First five months",
-    note: "Months 1 and 2 show $0. Month 3 shows add-ons only. Gift card can be applied to months 4 and 5.",
+    title: "First 5 months",
+    note: "Compare the same stretch of time with the free-month promo included.",
     giftCardAmount: 100,
     giftCardLabel: "$100 Visa gift card",
   },
@@ -917,19 +917,21 @@ function SavingsStep({
   setApplyGiftCard,
   setStep,
 }) {
-  const saving = monthlySavings > 0;
   const schedule = settings.billingSchedule || {};
-  const giftCardAmount = cleanNumber(schedule.giftCardAmount || 0);
+  const giftCardAvailable = cleanNumber(schedule.giftCardAmount || 0);
   const useGiftCard = !!applyGiftCard;
-  const promoAddonTotal = addonTotal;
-  const month4BeforeGift = Math.max(0, ourMonthly);
-  const giftAppliedMonth4 = useGiftCard ? Math.min(giftCardAmount, month4BeforeGift) : 0;
-  const month4AfterGift = Math.max(0, month4BeforeGift - giftAppliedMonth4);
-  const giftLeft = Math.max(0, giftCardAmount - giftAppliedMonth4);
-  const month5BeforeGift = Math.max(0, ourMonthly);
-  const giftAppliedMonth5 = useGiftCard ? Math.min(giftLeft, month5BeforeGift) : 0;
-  const month5AfterGift = Math.max(0, month5BeforeGift - giftAppliedMonth5);
-  const firstFiveTotal = promoAddonTotal + month4AfterGift + month5AfterGift;
+
+  const comparisonMonths = 5;
+  const currentFiveMonthTotal = currentMonthly * comparisonMonths;
+
+  // Promo-period model:
+  // First bill: $0
+  // Second bill: add-ons/default package add-ons only
+  // Then three normal monthly quote bills inside the five-month window.
+  const promoBeforeGift = addonTotal + ourMonthly * 3;
+  const giftCardApplied = useGiftCard ? Math.min(giftCardAvailable, Math.max(0, ourMonthly * 2)) : 0;
+  const promoAfterGift = Math.max(0, promoBeforeGift - giftCardApplied);
+  const promoSavingsVsCurrent = currentFiveMonthTotal - promoAfterGift;
 
   return (
     <section className="savings-stage">
@@ -965,36 +967,43 @@ function SavingsStep({
         </div>
 
         {schedule.enabled && (
-          <div className="billing-card">
-            <div className="billing-head">
+          <div className="promo-compare-card">
+            <div className="promo-head">
               <div>
-                <span className="label-red">{schedule.title || "First five months"}</span>
+                <span className="label-red">{schedule.title || "First 5 months"}</span>
                 <p>{schedule.note}</p>
               </div>
-              <strong>{money(firstFiveTotal)}</strong>
             </div>
 
-            <div className="gift-card-row">
-              <div>
-                <span>{schedule.giftCardLabel || "$100 Visa gift card"}</span>
-                <strong>Arrives after Month 3</strong>
+            <div className="promo-total-grid">
+              <div className="promo-total current">
+                <span>Current provider</span>
+                <strong>{money(currentFiveMonthTotal)}</strong>
+                <small>{money(currentMonthly)} × 5 months</small>
               </div>
-              <button
-                type="button"
-                className={useGiftCard ? "gift-toggle active" : "gift-toggle"}
-                onClick={() => setApplyGiftCard(!applyGiftCard)}
-              >
-                <span className="gift-check">{useGiftCard ? "✓" : ""}</span>
-                <span>{useGiftCard ? "Gift card applied" : "Apply gift card"}</span>
-              </button>
+
+              <div className="promo-total frontier">
+                <span>Fiber promo period</span>
+                <strong>{money(promoAfterGift)}</strong>
+                <small>
+                  Two $0 bills, add-ons bill, then regular quote bills
+                </small>
+              </div>
             </div>
 
-            <div className="billing-months new-billing-months">
-              <BillingMonth label="Month 1" amount={0} note="Promo month" />
-              <BillingMonth label="Month 2" amount={0} note="Promo month" />
-              <BillingMonth label="Month 3" amount={promoAddonTotal} note="Add-ons only" />
-              <BillingMonth label="Month 4" amount={month4AfterGift} original={useGiftCard ? month4BeforeGift : null} note={useGiftCard ? "Gift card applied" : "Normal quote"} />
-              <BillingMonth label="Month 5" amount={month5AfterGift} original={useGiftCard && giftAppliedMonth5 ? month5BeforeGift : null} note={useGiftCard && giftAppliedMonth5 ? "Gift card applied" : "Normal quote"} />
+            <button
+              type="button"
+              className={useGiftCard ? "gift-mini-toggle active" : "gift-mini-toggle"}
+              onClick={() => setApplyGiftCard(!applyGiftCard)}
+            >
+              <span className="mini-check">{useGiftCard ? "✓" : ""}</span>
+              <span>{useGiftCard ? "Gift card applied" : "Use $100 Visa gift card"}</span>
+              <strong>{useGiftCard ? "-" + money(giftCardApplied) : "optional"}</strong>
+            </button>
+
+            <div className="promo-result">
+              <span>Difference over first 5 months</span>
+              <strong>{money(promoSavingsVsCurrent)}</strong>
             </div>
           </div>
         )}
@@ -1018,20 +1027,6 @@ function SavingsStep({
         </div>
       </div>
     </section>
-  );
-}
-
-function BillingMonth({ label, amount, original, note }) {
-  const free = cleanNumber(amount) === 0;
-  return (
-    <div className={free ? "billing-month free" : "billing-month"}>
-      <span>{label}</span>
-      <strong>
-        {original ? <em>{money(original)}</em> : null}
-        {free ? "$0" : money(amount)}
-      </strong>
-      <small>{note}</small>
-    </div>
   );
 }
 
@@ -3321,6 +3316,133 @@ function GlobalStyles() {
       .gift-toggle.active strong {
         color: #d71920;
       }
+
+
+      .promo-compare-card {
+        margin: 14px 0;
+        border-radius: 26px;
+        background: #fff8f8;
+        border: 1px solid rgba(215, 25, 32, 0.14);
+        padding: 18px;
+      }
+
+      .promo-head {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        align-items: flex-start;
+        margin-bottom: 14px;
+      }
+
+      .promo-head p {
+        margin: 5px 0 0;
+        color: #666;
+        font-weight: 750;
+      }
+
+      .promo-total-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        margin-bottom: 10px;
+      }
+
+      .promo-total {
+        border-radius: 20px;
+        padding: 16px;
+        background: white;
+        border: 1px solid #eee;
+      }
+
+      .promo-total.frontier {
+        border-color: rgba(215, 25, 32, 0.22);
+        background: #ffffff;
+      }
+
+      .promo-total span,
+      .promo-total small,
+      .promo-result span {
+        display: block;
+        color: #666;
+        font-weight: 850;
+      }
+
+      .promo-total strong {
+        display: block;
+        margin: 6px 0 3px;
+        font-size: 2.2rem;
+        letter-spacing: -0.075em;
+        color: #171717;
+      }
+
+      .promo-total.frontier strong {
+        color: #d71920;
+      }
+
+      .gift-mini-toggle {
+        border: 1px solid rgba(215, 25, 32, 0.22);
+        border-radius: 999px;
+        background: #ffffff;
+        color: #171717;
+        padding: 9px 12px;
+        margin: 8px 0 12px;
+        display: inline-flex;
+        align-items: center;
+        gap: 9px;
+        font-weight: 950;
+        box-shadow: none;
+        font-size: 0.9rem;
+      }
+
+      .gift-mini-toggle .mini-check {
+        width: 18px;
+        height: 18px;
+        border-radius: 6px;
+        border: 2px solid #d71920;
+        background: #ffffff;
+        display: inline-grid;
+        place-items: center;
+        color: white;
+        font-size: 0.74rem;
+        line-height: 1;
+      }
+
+      .gift-mini-toggle strong {
+        color: #d71920;
+        font-size: 0.92rem;
+        letter-spacing: -0.02em;
+      }
+
+      .gift-mini-toggle.active {
+        background: #fff5f5;
+        border-color: rgba(215, 25, 32, 0.45);
+      }
+
+      .gift-mini-toggle.active .mini-check {
+        background: #d71920;
+      }
+
+      .promo-result {
+        background: #171717;
+        color: white;
+        border-radius: 20px;
+        padding: 16px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .promo-result span {
+        color: rgba(255, 255, 255, 0.72);
+      }
+
+      .promo-result strong {
+        color: white;
+        font-size: 2rem;
+        letter-spacing: -0.06em;
+      }
+
 
       @media (max-width: 880px) {
         .sales-shell {
