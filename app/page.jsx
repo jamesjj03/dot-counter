@@ -85,7 +85,7 @@ const DEFAULT_APP = {
   options: {
     sensitivity: 5,
     expectedDotArea: 220,
-    maxBlobMultiplier: 5,
+    maxBlobMultiplier: 4,
     splitOverlaps: false,
     cropLeft: 0,
     cropRight: 1,
@@ -295,11 +295,11 @@ function detectDotsForPreset(imageData, preset, options) {
       if (boxW < 3 || boxH < 3 || aspect < 0.16 || aspect > 6) continue;
 
       const estimated = Math.max(1, Math.round(blob.area / options.expectedDotArea));
-      const looksLikeNormalDot = blob.area < options.expectedDotArea * 2.4 || Math.max(boxW, boxH) < 28;
+      const looksLikeNormalDot = blob.area < options.expectedDotArea * 1.65;
       if (!options.splitOverlaps || estimated <= 1 || looksLikeNormalDot) {
         dots.push({ ...blob, type: preset.key, confidence: "direct" });
       } else {
-        const count = Math.min(estimated, 4);
+        const count = Math.min(estimated, 6);
         const cols = Math.ceil(Math.sqrt(count));
         const rows = Math.ceil(count / cols);
         let placed = 0;
@@ -325,21 +325,11 @@ function detectDotsForPreset(imageData, preset, options) {
   return dots;
 }
 
-function dedupeDots(dots, minDist = 18) {
-  const sorted = [...dots].sort((a, b) => (b.area || 0) - (a.area || 0));
-  const kept = [];
-  for (const dot of sorted) {
-    const tooClose = kept.some((k) => Math.hypot(k.x - dot.x, k.y - dot.y) < minDist);
-    if (!tooClose) kept.push(dot);
-  }
-  return kept.sort((a, b) => a.y - b.y || a.x - b.x);
-}
-
 function detectAll(canvas, options) {
   const ctx = canvas.getContext("2d", { willReadFrequently: true });
   const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
   const out = {};
-  for (const preset of DOT_PRESETS) out[preset.key] = dedupeDots(detectDotsForPreset(imageData, preset, options), preset.key === "lead" ? 18 : 22);
+  for (const preset of DOT_PRESETS) out[preset.key] = detectDotsForPreset(imageData, preset, options);
   return out;
 }
 
@@ -1266,18 +1256,15 @@ export default function GFFOSOps() {
 }
 
 function drawDot(ctx, dot, color) {
-  const r = Math.max(5, Math.min(10, dot.radius || 7));
   ctx.beginPath();
-  ctx.arc(dot.x, dot.y, r + 2, 0, Math.PI * 2);
-  ctx.lineWidth = dot.confidence === "manual" ? 4 : 2;
+  ctx.arc(dot.x, dot.y, Math.max(8, dot.radius + 4), 0, Math.PI * 2);
+  ctx.lineWidth = 4;
   ctx.strokeStyle = color;
-  ctx.globalAlpha = dot.confidence === "estimated" ? 0.72 : 0.92;
   ctx.stroke();
   ctx.beginPath();
-  ctx.arc(dot.x, dot.y, Math.max(2.5, r * 0.35), 0, Math.PI * 2);
+  ctx.arc(dot.x, dot.y, 2.5, 0, Math.PI * 2);
   ctx.fillStyle = color;
   ctx.fill();
-  ctx.globalAlpha = 1;
 }
 
 function drawTurf(ctx, turf, selected = false) {
@@ -1367,14 +1354,14 @@ function SalesDoorControls({ sales, patchSales }) {
 
   return (
     <Panel>
-      <h2 className="mb-3 flex items-center text-xl font-black"><DollarSign className="mr-2 h-5 w-5 text-[#27AE60]" /> Sales Flow</h2>
-      <label className="text-xs font-black uppercase tracking-widest text-[#27AE60]/70">Customer pays now</label>
-      <input value={sales.currentBill || ""} onChange={(e) => patchSales({ currentBill: e.target.value })} inputMode="decimal" placeholder="100" className="mt-2 w-full rounded-xl border-2 border-[#27AE60]/25 bg-black/45 px-4 py-4 text-2xl font-black text-white outline-none focus:border-[#27AE60]" />
+      <h2 className="mb-3 flex items-center text-xl font-black"><DollarSign className="mr-2 h-5 w-5 text-[#f5c542]" /> Sales Flow</h2>
+      <label className="text-xs font-black uppercase tracking-widest text-[#f5c542]/70">Customer pays now</label>
+      <input value={sales.currentBill || ""} onChange={(e) => patchSales({ currentBill: e.target.value })} inputMode="decimal" placeholder="100" className="mt-2 w-full rounded-xl border-2 border-[#f5c542]/25 bg-black/45 px-4 py-4 text-2xl font-black text-white outline-none focus:border-[#f5c542]" />
 
       <div className="mt-4 space-y-2">
-        <p className="text-xs font-black uppercase tracking-widest text-[#27AE60]/70">Pick our plan</p>
+        <p className="text-xs font-black uppercase tracking-widest text-[#f5c542]/70">Pick our plan</p>
         {(sales.plans || []).map((plan) => (
-          <button key={plan.id} onClick={() => patchSales({ activePlanId: plan.id })} className={`w-full rounded-xl px-3 py-3 text-left text-sm font-black ring-1 ${math.activePlan.id === plan.id ? "bg-[#27AE60] text-black ring-[#27AE60]" : "bg-black/35 text-white/75 ring-white/10"}`}>
+          <button key={plan.id} onClick={() => patchSales({ activePlanId: plan.id })} className={`w-full rounded-xl px-3 py-3 text-left text-sm font-black ring-1 ${math.activePlan.id === plan.id ? "bg-[#f5c542] text-black ring-[#f5c542]" : "bg-black/35 text-white/75 ring-white/10"}`}>
             <span className="block">{plan.name} • {money(plan.price)}</span>
             <span className="text-xs opacity-70">{plan.speed}</span>
           </button>
@@ -1382,7 +1369,7 @@ function SalesDoorControls({ sales, patchSales }) {
       </div>
 
       <div className="mt-4 space-y-2">
-        <p className="text-xs font-black uppercase tracking-widest text-[#27AE60]/70">Add-ons</p>
+        <p className="text-xs font-black uppercase tracking-widest text-[#f5c542]/70">Add-ons</p>
         {(sales.addons || []).map((addon) => {
           const active = (sales.selectedAddonIds || []).includes(addon.id);
           return <button key={addon.id} onClick={() => toggleAddon(addon.id)} className={`w-full rounded-xl px-3 py-3 text-left text-sm font-black ring-1 ${active ? "bg-red-700 text-white ring-red-400" : "bg-black/35 text-white/75 ring-white/10"}`}>{active ? "✓ " : "+ "}{addon.name} • {money(addon.price)}</button>;
@@ -1402,11 +1389,11 @@ function SalesFlow({ sales, patchSales }) {
       <Panel>
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <p className="text-xs font-black uppercase tracking-[.25em] text-[#27AE60]/70">Digital laminated paper</p>
+            <p className="text-xs font-black uppercase tracking-[.25em] text-[#f5c542]/70">Digital laminated paper</p>
             <h2 className="text-3xl font-black tracking-[-0.05em] sm:text-5xl">Fiber Sales Card</h2>
           </div>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            {steps.map(([key, label]) => <button key={key} onClick={() => setStep(key)} className={`rounded-xl px-3 py-3 text-sm font-black ${step === key ? "bg-[#27AE60] text-black" : "bg-black/45 text-white/70"}`}>{label}</button>)}
+            {steps.map(([key, label]) => <button key={key} onClick={() => setStep(key)} className={`rounded-xl px-3 py-3 text-sm font-black ${step === key ? "bg-[#f5c542] text-black" : "bg-black/45 text-white/70"}`}>{label}</button>)}
           </div>
         </div>
       </Panel>
@@ -1424,15 +1411,15 @@ function FiberExplainer({ sales, goNext }) {
     <Panel>
       <div className="grid gap-4 lg:grid-cols-[1.1fr_.9fr]">
         <div>
-          <div className="mb-4 inline-flex rounded-full bg-[#27AE60] px-4 py-2 text-xs font-black uppercase tracking-widest text-black">Start here</div>
+          <div className="mb-4 inline-flex rounded-full bg-[#f5c542] px-4 py-2 text-xs font-black uppercase tracking-widest text-black">Start here</div>
           <h3 className="mb-3 text-4xl font-black tracking-[-0.06em] sm:text-6xl">Fiber is internet built on light.</h3>
           <p className="text-lg font-bold text-white/65 sm:text-xl">Simple version: old internet is like a crowded road. Fiber is a cleaner, faster lane that can move way more data without choking.</p>
-          <button onClick={goNext} className="mt-5 inline-flex items-center rounded-2xl bg-[#27AE60] px-5 py-4 text-base font-black text-black">Compare their bill <ArrowRight className="ml-2 h-5 w-5" /></button>
+          <button onClick={goNext} className="mt-5 inline-flex items-center rounded-2xl bg-[#f5c542] px-5 py-4 text-base font-black text-black">Compare their bill <ArrowRight className="ml-2 h-5 w-5" /></button>
         </div>
         <div className="grid gap-3">
           {(sales.fiberPoints || []).map((point, i) => (
-            <div key={i} className="rounded-3xl border border-[#27AE60]/15 bg-black/30 p-4">
-              <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-2xl bg-[#27AE60] text-black"><Zap className="h-5 w-5" /></div>
+            <div key={i} className="rounded-3xl border border-[#f5c542]/15 bg-black/30 p-4">
+              <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-2xl bg-[#f5c542] text-black"><Zap className="h-5 w-5" /></div>
               <p className="text-lg font-black text-white">{point}</p>
             </div>
           ))}
@@ -1449,9 +1436,9 @@ function BillCompare({ sales, patchSales, math, goNext }) {
       <div className="grid gap-4 md:grid-cols-2">
         <div className="rounded-3xl bg-black/35 p-5 ring-1 ring-white/10">
           <p className="mb-2 text-xs font-black uppercase tracking-widest text-white/45">Their current bill</p>
-          <div className="flex items-center gap-2"><span className="text-4xl font-black text-[#27AE60]">$</span><input value={sales.currentBill || ""} onChange={(e) => patchSales({ currentBill: e.target.value })} inputMode="decimal" className="w-full rounded-2xl border-2 border-[#27AE60]/25 bg-black/55 px-4 py-4 text-5xl font-black text-white outline-none focus:border-[#27AE60]" /></div>
+          <div className="flex items-center gap-2"><span className="text-4xl font-black text-[#f5c542]">$</span><input value={sales.currentBill || ""} onChange={(e) => patchSales({ currentBill: e.target.value })} inputMode="decimal" className="w-full rounded-2xl border-2 border-[#f5c542]/25 bg-black/55 px-4 py-4 text-5xl font-black text-white outline-none focus:border-[#f5c542]" /></div>
         </div>
-        <div className="rounded-3xl bg-[#27AE60] p-5 text-black">
+        <div className="rounded-3xl bg-[#f5c542] p-5 text-black">
           <p className="mb-2 text-xs font-black uppercase tracking-widest opacity-60">Our current setup</p>
           <p className="text-4xl font-black tracking-[-0.05em]">{math.activePlan.name}</p>
           <p className="text-xl font-black opacity-70">{math.activePlan.speed} • {money(math.ourTotal)}/mo</p>
@@ -1474,7 +1461,7 @@ function PlanChooser({ sales, patchSales, math, goNext }) {
       <div className="grid gap-3 lg:grid-cols-3">
         {(sales.plans || []).map((plan) => {
           const active = math.activePlan.id === plan.id;
-          return <button key={plan.id} onClick={() => patchSales({ activePlanId: plan.id })} className={`rounded-3xl p-5 text-left ring-2 ${active ? "bg-[#27AE60] text-black ring-[#27AE60]" : "bg-black/30 text-white ring-white/10"}`}>
+          return <button key={plan.id} onClick={() => patchSales({ activePlanId: plan.id })} className={`rounded-3xl p-5 text-left ring-2 ${active ? "bg-[#f5c542] text-black ring-[#f5c542]" : "bg-black/30 text-white ring-white/10"}`}>
             <p className="mb-2 inline-flex rounded-full bg-black/20 px-3 py-1 text-xs font-black uppercase tracking-widest">{plan.badge}</p>
             <h4 className="text-3xl font-black tracking-[-0.05em]">{plan.name}</h4>
             <p className="text-xl font-black opacity-75">{plan.speed}</p>
@@ -1489,7 +1476,7 @@ function PlanChooser({ sales, patchSales, math, goNext }) {
           return <button key={addon.id} onClick={() => toggleAddon(addon.id)} className={`rounded-2xl px-4 py-4 text-left font-black ring-1 ${active ? "bg-red-700 text-white ring-red-400" : "bg-black/30 text-white/75 ring-white/10"}`}>{active ? "✓ " : "+ "}{addon.name}<span className="block text-sm opacity-70">{money(addon.price)}/mo</span></button>;
         })}
       </div>
-      <button onClick={goNext} className="mt-5 rounded-2xl bg-[#27AE60] px-5 py-4 text-base font-black text-black">Show savings</button>
+      <button onClick={goNext} className="mt-5 rounded-2xl bg-[#f5c542] px-5 py-4 text-base font-black text-black">Show savings</button>
     </Panel>
   );
 }
@@ -1499,7 +1486,7 @@ function SavingsSummary({ math, goBack }) {
   return (
     <Panel>
       <div className="rounded-[2rem] bg-black/35 p-5 ring-1 ring-white/10">
-        <p className="text-xs font-black uppercase tracking-[.25em] text-[#27AE60]/70">Final comparison</p>
+        <p className="text-xs font-black uppercase tracking-[.25em] text-[#f5c542]/70">Final comparison</p>
         <h3 className="mt-2 text-4xl font-black tracking-[-0.06em] sm:text-6xl">{saving ? "They save money." : "This option costs more."}</h3>
         <div className="mt-5 grid gap-3 md:grid-cols-3">
           <Stat label="Now" value={`${money(math.current)}/mo`} />
@@ -1507,7 +1494,7 @@ function SavingsSummary({ math, goBack }) {
           <Stat label={saving ? "Monthly savings" : "Monthly difference"} value={money(Math.abs(math.monthlySave))} pink={!saving} gold={saving} />
         </div>
         <div className="mt-4 grid gap-3 md:grid-cols-2">
-          <div className="rounded-3xl bg-[#27AE60] p-5 text-black"><p className="text-sm font-black uppercase opacity-60">1 year</p><p className="text-5xl font-black tracking-[-0.06em]">{money(Math.abs(math.yearlySave))}</p></div>
+          <div className="rounded-3xl bg-[#f5c542] p-5 text-black"><p className="text-sm font-black uppercase opacity-60">1 year</p><p className="text-5xl font-black tracking-[-0.06em]">{money(Math.abs(math.yearlySave))}</p></div>
           <div className="rounded-3xl bg-red-700 p-5 text-white"><p className="text-sm font-black uppercase opacity-70">3 years</p><p className="text-5xl font-black tracking-[-0.06em]">{money(Math.abs(math.threeYearSave))}</p></div>
         </div>
         <p className="mt-4 text-lg font-bold text-white/60">Selected: {math.activePlan.name} at {money(math.activePlan.price)}/mo{math.selectedAddons.length ? ` + ${math.selectedAddons.map((a) => a.name).join(" + ")}` : ""}</p>
@@ -1530,7 +1517,7 @@ function PricingAdmin({ sales, updateSales }) {
         <p className="mt-1 text-sm font-bold text-white/50">Edit plans and add-ons here. It saves with the rest of the app cloud state.</p>
       </Panel>
       <Panel>
-        <div className="mb-3 flex items-center justify-between"><h3 className="text-xl font-black">Plans</h3><button onClick={addPlan} className="rounded-xl bg-[#27AE60] px-4 py-2 text-sm font-black text-black">Add plan</button></div>
+        <div className="mb-3 flex items-center justify-between"><h3 className="text-xl font-black">Plans</h3><button onClick={addPlan} className="rounded-xl bg-[#f5c542] px-4 py-2 text-sm font-black text-black">Add plan</button></div>
         <div className="space-y-3">
           {(sales.plans || []).map((plan) => <div key={plan.id} className="grid gap-2 rounded-2xl bg-black/30 p-3 md:grid-cols-4">
             <input value={plan.name} onChange={(e) => updatePlan(plan.id, "name", e.target.value)} className="rounded-xl bg-white px-3 py-3 font-black text-black" />
@@ -1541,7 +1528,7 @@ function PricingAdmin({ sales, updateSales }) {
         </div>
       </Panel>
       <Panel>
-        <div className="mb-3 flex items-center justify-between"><h3 className="text-xl font-black">Add-ons</h3><button onClick={addAddon} className="rounded-xl bg-[#27AE60] px-4 py-2 text-sm font-black text-black">Add add-on</button></div>
+        <div className="mb-3 flex items-center justify-between"><h3 className="text-xl font-black">Add-ons</h3><button onClick={addAddon} className="rounded-xl bg-[#f5c542] px-4 py-2 text-sm font-black text-black">Add add-on</button></div>
         <div className="space-y-3">
           {(sales.addons || []).map((addon) => <div key={addon.id} className="grid gap-2 rounded-2xl bg-black/30 p-3 md:grid-cols-3">
             <input value={addon.name} onChange={(e) => updateAddon(addon.id, "name", e.target.value)} className="rounded-xl bg-white px-3 py-3 font-black text-black" />
@@ -1557,81 +1544,49 @@ function PricingAdmin({ sales, updateSales }) {
 function SharkBg() {
   return (
     <div className="pointer-events-none fixed inset-0 overflow-hidden">
-      <div className="absolute -left-28 -top-28 h-[34rem] w-[34rem] rounded-full bg-[#27AE60]/30 blur-3xl" />
+      <div className="absolute -left-28 -top-28 h-[34rem] w-[34rem] rounded-full bg-[#f5c542]/30 blur-3xl" />
       <div className="absolute right-[-10rem] top-24 h-[32rem] w-[32rem] rounded-full bg-white/10 blur-3xl" />
-      <div className="absolute bottom-[-12rem] left-1/3 h-[36rem] w-[36rem] rounded-full bg-[#172033]/70 blur-3xl" />
-      <div className="absolute left-[12%] top-[22%] rotate-12 text-[15rem] font-black leading-none text-black/[0.035]">GFF</div>
-      <div className="absolute right-[7%] top-[18%] -rotate-12 text-[13rem] font-black leading-none text-[#27AE60]/[0.09]">SHARKS</div>
+      <div className="absolute bottom-[-12rem] left-1/3 h-[36rem] w-[36rem] rounded-full bg-[#2b2118]/70 blur-3xl" />
+      <div className="absolute left-[12%] top-[22%] rotate-12 text-[15rem] font-black leading-none text-black/[0.035]">DDM</div>
+      <div className="absolute right-[7%] top-[18%] -rotate-12 text-[13rem] font-black leading-none text-[#b8860b]/[0.09]">SHARKS</div>
       <div className="absolute bottom-[8%] left-[8%] h-24 w-24 rotate-45 rounded-tl-[100%] bg-black/[0.06]" />
-      <div className="absolute bottom-[18%] right-[12%] h-32 w-32 rotate-45 rounded-tl-[100%] bg-[#27AE60]/[0.16]" />
+      <div className="absolute bottom-[18%] right-[12%] h-32 w-32 rotate-45 rounded-tl-[100%] bg-[#f5c542]/[0.16]" />
     </div>
   );
 }
 
 function Header({ mode, setMode, admin }) {
+  const tabs = admin
+    ? [["areas", <Layers />, "Areas"], ["upload", <Upload />, "Upload"], ["count", <Target />, "Count"], ["erase", <Eraser />, "Erase"], ["auto", <Split />, "Auto"], ["manual", <Scissors />, "Map"], ["team", <Users />, "Team"]]
+    : [["manual", <Map />, "Map"], ["team", <Users />, "Team"]];
+
   const openSalesPage = () => {
     if (typeof window !== "undefined") window.location.href = "/sales";
   };
 
   return (
-    <header className="mb-3 rounded-[1.25rem] border border-[#D7FF00]/25 bg-[#07073a]/95 p-4 shadow-xl shadow-black/30 backdrop-blur-xl">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <header className="mb-3 rounded-[1.25rem] border border-[#f5c542]/15 bg-[#1b1410]/90 p-3 text-center shadow-xl shadow-black/30 backdrop-blur-xl sm:p-4">
+      <div className="mx-auto flex max-w-6xl flex-col items-center gap-3">
         <div>
-          <div className="inline-flex items-center gap-2 rounded-full bg-[#D7FF00] px-3 py-1 text-[10px] font-black uppercase tracking-widest text-[#05052d]">
-            <Flame className="h-3.5 w-3.5" /> GFF OS • KINETIC FIELD MODE
+          <div className="mx-auto mb-2 inline-flex items-center gap-2 rounded-full bg-[#3b0f0f] px-3 py-1 text-[10px] font-black uppercase tracking-widest text-[#ff6b5f] ring-1 ring-red-500/30 sm:text-xs">
+            <Flame className="h-3.5 w-3.5" /> IPAD FIX v4 LIVE • CLOUD SYNC
           </div>
-          <h1 className="mt-1 text-3xl font-black tracking-[-0.07em] sm:text-5xl">
-            <span className="bg-gradient-to-r from-white via-[#D7FF00] to-[#27AE60] bg-clip-text text-transparent">GFF OS</span>
+          <h1 className="text-3xl font-black tracking-[-0.07em] sm:text-5xl lg:text-6xl">
+            <span className="bg-gradient-to-r from-[#f7f3ea] via-[#f5c542] to-[#ef4444] bg-clip-text text-transparent">DDM SHARKS</span>
           </h1>
         </div>
-        <div className="flex gap-2">
-          <button type="button" onClick={() => setMode("manual")} className="rounded-2xl bg-[#27AE60] px-4 py-3 text-xs font-black text-white shadow-lg shadow-[#27AE60]/20">
-            <Map className="mr-1 inline h-4 w-4" /> Turf
-          </button>
-          <button type="button" onClick={openSalesPage} className="rounded-2xl bg-white px-4 py-3 text-xs font-black text-[#05052d] shadow-lg shadow-black/20">
-            <DollarSign className="mr-1 inline h-4 w-4" /> Quote
+        <div className={`grid w-full max-w-4xl gap-1.5 rounded-2xl bg-black/70 p-1.5 ${admin ? "grid-cols-4 sm:grid-cols-4 lg:grid-cols-8" : "grid-cols-3 sm:max-w-xl"}`}>
+          {tabs.map(([key, icon, label]) => (
+            <button key={key} type="button" onClick={() => setMode(key)} className={`flex min-h-9 items-center justify-center rounded-xl px-2 text-xs font-black transition sm:min-h-10 ${mode === key ? "bg-[#f5c542] text-black shadow-lg shadow-[#f5c542]/20" : "text-white/70 hover:bg-white/10"}`}>
+              {React.cloneElement(icon, { className: "mr-1 h-3.5 w-3.5" })}{label}
+            </button>
+          ))}
+          <button type="button" onClick={openSalesPage} className="flex min-h-9 items-center justify-center rounded-xl bg-white px-2 text-xs font-black text-red-700 transition hover:bg-red-50 sm:min-h-10">
+            <DollarSign className="mr-1 h-3.5 w-3.5" /> Sales
           </button>
         </div>
       </div>
     </header>
-  );
-}
-
-function FloatingTools({ mode, setMode, admin }) {
-  const [open, setOpen] = useState(false);
-  const tabs = admin
-    ? [
-        ["manual", <Scissors />, "Turf"],
-        ["adddot", <Crosshair />, "+ Dot"],
-        ["erase", <Eraser />, "Erase"],
-        ["count", <Target />, "Recount"],
-        ["auto", <Split />, "Auto"],
-        ["upload", <Upload />, "Upload"],
-        ["areas", <Layers />, "Areas"],
-        ["team", <Users />, "Team"],
-      ]
-    : [["manual", <Map />, "Map"], ["team", <Users />, "Team"]];
-
-  const current = tabs.find(([key]) => key === mode) || tabs[0];
-
-  return (
-    <div className="fixed right-3 top-1/2 z-50 -translate-y-1/2">
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        className="mb-2 flex h-14 w-14 items-center justify-center rounded-2xl border border-[#D7FF00]/40 bg-[#05052d] text-[#D7FF00] shadow-2xl shadow-black/50"
-        title="Tools"
-      >
-        {React.cloneElement(current[1], { className: "h-6 w-6" })}
-      </button>
-      <div className={`${open ? "flex" : "hidden xl:flex"} flex-col gap-1.5 rounded-2xl border border-[#D7FF00]/30 bg-[#05052d]/95 p-1.5 shadow-2xl shadow-black/50 backdrop-blur-xl`}>
-        {tabs.map(([key, icon, label]) => (
-          <button key={key} type="button" onClick={() => { setMode(key); setOpen(false); }} className={`flex min-h-11 min-w-[94px] items-center justify-start rounded-xl px-3 text-xs font-black transition ${mode === key ? "bg-[#D7FF00] text-[#05052d] shadow-lg shadow-[#D7FF00]/20" : "bg-black/45 text-white/75 hover:bg-white/10"}`}>
-            {React.cloneElement(icon, { className: "mr-1.5 h-4 w-4" })}{label}
-          </button>
-        ))}
-      </div>
-    </div>
   );
 }
 
@@ -1943,21 +1898,8 @@ function RepFilter({ selectedRep, setSelectedRep }) {
   );
 }
 
-function Tuning({ options, setOptions, reCount }) {
-  return (
-    <Panel>
-      <h2 className="mb-4 flex items-center text-2xl font-black"><Wand2 className="mr-2" /> Dot Fixer</h2>
-      <Slider label="Sensitivity" value={options.sensitivity} min={0} max={10} step={1} onChange={(v) => setOptions({ ...options, sensitivity: Number(v) })} />
-      <Slider label="Dot Size" value={options.expectedDotArea} min={80} max={520} step={10} onChange={(v) => setOptions({ ...options, expectedDotArea: Number(v) })} />
-      <label className="mb-3 flex items-center justify-between rounded-2xl bg-black/35 p-3 text-sm font-black"><span>Split clumped dots</span><input type="checkbox" checked={!!options.splitOverlaps} onChange={(e) => setOptions({ ...options, splitOverlaps: e.target.checked })} className="h-5 w-5 accent-[#27AE60]" /></label>
-      <button type="button" onClick={() => setOptions({ ...options, splitOverlaps: false, expectedDotArea: 220, sensitivity: 4 })} className="mb-3 w-full rounded-2xl bg-white/10 py-3 text-sm font-black text-white">Calm the dots</button>
-      <button onClick={reCount} className="w-full rounded-2xl bg-[#D7FF00] py-4 text-xl font-black text-[#05052d]">Recount + keep manual dots</button>
-      <p className="mt-2 text-xs font-bold text-white/45">If the overlay looks like little flower clusters, hit Calm the dots, then Recount. Use + Dot for missed leads.</p>
-    </Panel>
-  );
-}
-
-function Slider({ label, value, min, max, step, onChange }) { return <label className="mb-4 block"><div className="mb-2 flex justify-between text-lg font-black"><span>{label}</span><span>{value}</span></div><input type="range" min={min} max={max} step={step} value={value} onChange={(e) => onChange(e.target.value)} className="w-full accent-[#27AE60]" /></label>; }
+function Tuning({ options, setOptions, reCount }) { return <Panel><h2 className="mb-4 flex items-center text-2xl font-black"><Wand2 className="mr-2" /> Tuning</h2><Slider label="Sensitivity" value={options.sensitivity} min={0} max={10} step={1} onChange={(v) => setOptions({ ...options, sensitivity: Number(v) })} /><Slider label="Dot Size" value={options.expectedDotArea} min={60} max={420} step={10} onChange={(v) => setOptions({ ...options, expectedDotArea: Number(v) })} /><button onClick={reCount} className="mt-4 w-full rounded-2xl bg-black py-4 text-xl font-black text-[#f5c542]">Recount</button></Panel>; }
+function Slider({ label, value, min, max, step, onChange }) { return <label className="mb-4 block"><div className="mb-2 flex justify-between text-lg font-black"><span>{label}</span><span>{value}</span></div><input type="range" min={min} max={max} step={step} value={value} onChange={(e) => onChange(e.target.value)} className="w-full accent-[#b8860b]" /></label>; }
 function MapPanel({ fileRef, upload, activeShot, canvasRef, overlayRef, canvasClick, mode, showDots, setShowDots, showTurf, setShowTurf, showSold, setShowSold, uploadEnabled, startDrag, moveDrag, stopDrag, editMode, startSwipe, endSwipe, handleTouchStart, handleTouchMove, handleTouchEnd }) {
   return (
     <div className="rounded-[1.5rem] border border-[#27AE60]/15 bg-[#080a3d]/90 p-3 text-[#f8fafc] shadow-xl shadow-black/30 backdrop-blur-xl sm:p-4">
