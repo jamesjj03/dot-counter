@@ -62,6 +62,7 @@ const DEFAULT_APP = {
     { rep: "Zack", percent: 25 },
     { rep: "Chris", percent: 25 },
   ],
+  carGroups: CAR_GROUPS,
   sales: {
     currentBill: 100,
     activePlanId: "fiber-1g",
@@ -135,6 +136,11 @@ function normalizeAppState(value) {
   }) : [];
 
   app.assignments = Array.isArray(incoming.assignments) && incoming.assignments.length ? incoming.assignments : base.assignments;
+  app.carGroups = Array.isArray(incoming.carGroups) && incoming.carGroups.length ? incoming.carGroups.map((g, i) => ({
+    id: g.id || `car-${i + 1}`,
+    name: g.name || `Car ${i + 1}`,
+    reps: Array.isArray(g.reps) ? g.reps.filter((r) => REPS.includes(r)) : [],
+  })) : base.carGroups;
   app.sales = { ...base.sales, ...(incoming.sales && typeof incoming.sales === "object" ? incoming.sales : {}) };
   app.sales.plans = Array.isArray(app.sales.plans) && app.sales.plans.length ? app.sales.plans : base.sales.plans;
   app.sales.addons = Array.isArray(app.sales.addons) ? app.sales.addons : base.sales.addons;
@@ -437,18 +443,18 @@ function repColor(rep) {
   return REP_COLORS[rep] || "#ffffff";
 }
 
-function groupForFilter(filter) {
-  return CAR_GROUPS.find((g) => g.id === filter || g.name === filter) || null;
+function groupForFilter(filter, groups = CAR_GROUPS) {
+  return (groups || CAR_GROUPS).find((g) => g.id === filter || g.name === filter) || null;
 }
 
-function repsForFilter(filter) {
+function repsForFilter(filter, groups = CAR_GROUPS) {
   if (filter === "All") return REPS;
-  const group = groupForFilter(filter);
+  const group = groupForFilter(filter, groups);
   return group ? group.reps : [filter];
 }
 
-function filterLabel(filter) {
-  const group = groupForFilter(filter);
+function filterLabel(filter, groups = CAR_GROUPS) {
+  const group = groupForFilter(filter, groups);
   return group ? group.name : filter;
 }
 
@@ -947,7 +953,9 @@ export default function GFFOSOps() {
     const canvas = canvasRef.current;
     if (!canvas || !activeShot) return;
     const nextDetections = detectAll(canvas, app.options);
-    updateActiveArea((area) => ({ ...area, screenshots: area.screenshots.map((s) => s.id === activeShot.id ? { ...s, detections: nextDetections } : s) }));
+    const manualLeads = (activeShot.detections?.lead || []).filter((d) => d.confidence === "manual");
+    const manualPink = (activeShot.detections?.pink || []).filter((d) => d.confidence === "manual");
+    updateActiveArea((area) => ({ ...area, screenshots: area.screenshots.map((s) => s.id === activeShot.id ? { ...s, detections: { lead: [...(nextDetections.lead || []), ...manualLeads], pink: [...(nextDetections.pink || []), ...manualPink] } } : s) }));
   };
 
   const addManualDot = (x, y) => {
@@ -1029,6 +1037,7 @@ export default function GFFOSOps() {
   }, [editMode, selectedTurfId, mode, deleteTurf]);
 
   const updateAssignments = (assignments) => setApp((prev) => ({ ...prev, assignments }));
+  const updateCarGroups = (carGroups) => setApp((prev) => ({ ...prev, carGroups }));
   const updateOptions = (options) => setApp((prev) => ({ ...prev, options }));
   const updateSales = (sales) => setApp((prev) => ({ ...prev, sales: { ...(prev.sales || DEFAULT_APP.sales), ...sales } }));
   const patchSales = (patch) => setApp((prev) => ({ ...prev, sales: { ...(prev.sales || DEFAULT_APP.sales), ...patch } }));
@@ -1038,7 +1047,7 @@ export default function GFFOSOps() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "ddm-sharks-data.json";
+    a.download = "gff-os-data.json";
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -1263,9 +1272,10 @@ export default function GFFOSOps() {
   return (
     <main className="min-h-screen bg-[#05052d] text-[#f8fafc]" style={{ fontFamily: "Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif" }}>
       <OldIpadStyleFix />
-      <SharkBg />
+      <GFFBg />
       <section className="relative mx-auto max-w-[1540px] px-3 py-4 sm:px-6 lg:px-8">
         <Header mode={mode} setMode={setMode} admin={admin} />
+        <FloatingTools mode={mode} setMode={setMode} admin={admin} />
         <ViewerNav
           areas={app.areas}
           activeArea={activeArea}
@@ -1277,6 +1287,7 @@ export default function GFFOSOps() {
           stepArea={stepArea}
           stepShot={stepShot}
           teamStats={teamStats}
+          carGroups={app.carGroups}
         />
         <div className="grid gap-4 xl:grid-cols-[320px_1fr]">
           <aside className="space-y-3 xl:sticky xl:top-4 xl:self-start">
@@ -1286,7 +1297,7 @@ export default function GFFOSOps() {
             {mode === "upload" && admin && <UploadBox fileRef={fileRef} upload={upload} admin={admin} />}
             {mode === "auto" && admin && <AutoBox assignments={app.assignments} setAssignments={updateAssignments} totals={totals} autoThis={autoThis} autoArea={autoArea} admin={admin} />}
             {mode === "manual" && admin && <ManualBox manualRep={manualRep} setManualRep={setManualRep} polygon={polygon} clear={() => setPolygon([])} saveManual={saveManual} admin={admin} editMode={editMode} setEditMode={setEditMode} selectedTurf={selectedTurf} deleteSelected={() => selectedTurfId && deleteTurf(selectedTurfId)} />}
-            {admin && <RepFilter selectedRep={selectedRep} setSelectedRep={setSelectedRep} />}
+            {admin && <RepFilter selectedRep={selectedRep} setSelectedRep={setSelectedRep} carGroups={app.carGroups} setCarGroups={updateCarGroups} />}
             {mode === "count" && admin && <Tuning options={app.options} setOptions={updateOptions} reCount={reCount} />}
           </aside>
 
@@ -1471,7 +1482,7 @@ function FiberExplainer({ sales, goNext }) {
         </div>
         <div className="grid gap-3">
           {(sales.fiberPoints || []).map((point, i) => (
-            <div key={i} className="rounded-3xl border border-[#f5c542]/15 bg-black/30 p-4">
+            <div key={i} className="rounded-3xl border border-[#27AE60]/20 bg-black/30 p-4">
               <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-2xl bg-[#f5c542] text-black"><Zap className="h-5 w-5" /></div>
               <p className="text-lg font-black text-white">{point}</p>
             </div>
@@ -1594,16 +1605,32 @@ function PricingAdmin({ sales, updateSales }) {
   );
 }
 
-function SharkBg() {
+function GFFBg() {
   return (
     <div className="pointer-events-none fixed inset-0 overflow-hidden">
       <div className="absolute -left-28 -top-28 h-[34rem] w-[34rem] rounded-full bg-[#f5c542]/30 blur-3xl" />
       <div className="absolute right-[-10rem] top-24 h-[32rem] w-[32rem] rounded-full bg-white/10 blur-3xl" />
       <div className="absolute bottom-[-12rem] left-1/3 h-[36rem] w-[36rem] rounded-full bg-[#2b2118]/70 blur-3xl" />
-      <div className="absolute left-[12%] top-[22%] rotate-12 text-[15rem] font-black leading-none text-black/[0.035]">DDM</div>
-      <div className="absolute right-[7%] top-[18%] -rotate-12 text-[13rem] font-black leading-none text-[#b8860b]/[0.09]">SHARKS</div>
+      <div className="absolute left-[12%] top-[22%] rotate-12 text-[15rem] font-black leading-none text-black/[0.035]">GFF</div>
+      <div className="absolute right-[7%] top-[18%] -rotate-12 text-[13rem] font-black leading-none text-[#b8860b]/[0.09]">OS</div>
       <div className="absolute bottom-[8%] left-[8%] h-24 w-24 rotate-45 rounded-tl-[100%] bg-black/[0.06]" />
       <div className="absolute bottom-[18%] right-[12%] h-32 w-32 rotate-45 rounded-tl-[100%] bg-[#f5c542]/[0.16]" />
+    </div>
+  );
+}
+
+function FloatingTools({ mode, setMode, admin }) {
+  const tools = admin
+    ? [["areas", Layers, "Areas"], ["upload", Upload, "Upload"], ["count", Target, "Count"], ["erase", Eraser, "Erase"], ["adddot", Crosshair, "+ Dot"], ["auto", Split, "Auto"], ["manual", Scissors, "Map"], ["team", Users, "Team"]]
+    : [["manual", Map, "Map"], ["team", Users, "Team"]];
+  return (
+    <div className="fixed bottom-3 left-1/2 z-40 flex max-w-[calc(100vw-1rem)] -translate-x-1/2 gap-1.5 overflow-x-auto rounded-2xl border border-[#27AE60]/20 bg-[#05052d]/92 p-1.5 shadow-2xl shadow-black/40 backdrop-blur-xl xl:left-3 xl:top-1/2 xl:bottom-auto xl:max-w-none xl:-translate-x-0 xl:-translate-y-1/2 xl:flex-col">
+      {tools.map(([key, Icon, label]) => (
+        <button key={key} type="button" onClick={() => setMode(key)} className={`flex shrink-0 items-center justify-center rounded-xl px-3 py-2 text-xs font-black transition xl:h-12 xl:w-16 xl:flex-col xl:px-2 ${mode === key ? "bg-[#D7FF00] text-[#05052d]" : "bg-white/[0.08] text-white/70 hover:bg-white/15"}`}>
+          <Icon className="h-4 w-4 xl:mb-1" /> <span>{label}</span>
+        </button>
+      ))}
+      <button type="button" onClick={() => { if (typeof window !== "undefined") window.location.href = "/sales"; }} className="flex shrink-0 items-center justify-center rounded-xl bg-white px-3 py-2 text-xs font-black text-[#05052d] xl:h-12 xl:w-16 xl:flex-col xl:px-2"><DollarSign className="h-4 w-4 xl:mb-1" /> Quote</button>
     </div>
   );
 }
@@ -1618,14 +1645,14 @@ function Header({ mode, setMode, admin }) {
   };
 
   return (
-    <header className="mb-3 rounded-[1.25rem] border border-[#f5c542]/15 bg-[#1b1410]/90 p-3 text-center shadow-xl shadow-black/30 backdrop-blur-xl sm:p-4">
+    <header className="mb-3 rounded-[1.25rem] border border-[#27AE60]/20 bg-[#080a3d]/90 p-3 text-center shadow-xl shadow-black/30 backdrop-blur-xl sm:p-4">
       <div className="mx-auto flex max-w-6xl flex-col items-center gap-3">
         <div>
-          <div className="mx-auto mb-2 inline-flex items-center gap-2 rounded-full bg-[#3b0f0f] px-3 py-1 text-[10px] font-black uppercase tracking-widest text-[#ff6b5f] ring-1 ring-red-500/30 sm:text-xs">
-            <Flame className="h-3.5 w-3.5" /> IPAD FIX v4 LIVE • CLOUD SYNC
+          <div className="mx-auto mb-2 inline-flex items-center gap-2 rounded-full bg-[#05052d] px-3 py-1 text-[10px] font-black uppercase tracking-widest text-[#D7FF00] ring-1 ring-[#27AE60]/30 sm:text-xs">
+            <Flame className="h-3.5 w-3.5" /> GFF OS • KINETIC FIELD MODE
           </div>
           <h1 className="text-3xl font-black tracking-[-0.07em] sm:text-5xl lg:text-6xl">
-            <span className="bg-gradient-to-r from-[#f7f3ea] via-[#f5c542] to-[#ef4444] bg-clip-text text-transparent">DDM SHARKS</span>
+            <span className="bg-gradient-to-r from-white via-[#D7FF00] to-[#27AE60] bg-clip-text text-transparent">GFF OS</span>
           </h1>
         </div>
         <div className={`grid w-full max-w-4xl gap-1.5 rounded-2xl bg-black/70 p-1.5 ${admin ? "grid-cols-4 sm:grid-cols-4 lg:grid-cols-8" : "grid-cols-3 sm:max-w-xl"}`}>
@@ -1723,10 +1750,11 @@ function Admin({ admin, pin, setPin, unlock, exportData, resetData, compact, loc
   );
 }
 
-function ViewerNav({ areas, activeArea, activeShot, selectedRep, setSelectedRep, switchArea, switchShot, stepArea, stepShot, teamStats }) {
+function ViewerNav({ areas, activeArea, activeShot, selectedRep, setSelectedRep, switchArea, switchShot, stepArea, stepShot, teamStats, carGroups = CAR_GROUPS }) {
   const shots = activeArea?.screenshots || [];
-  const selectedLabel = filterLabel(selectedRep);
-  const selectedReps = repsForFilter(selectedRep);
+  const groups = carGroups || CAR_GROUPS;
+  const selectedLabel = filterLabel(selectedRep, groups);
+  const selectedReps = repsForFilter(selectedRep, groups);
   const selectedTotals = selectedRep === "All"
     ? teamStats.reduce((acc, s) => ({ leads: acc.leads + s.leads, zones: acc.zones + s.zones }), { leads: 0, zones: 0 })
     : teamStats.filter((s) => selectedReps.includes(s.rep)).reduce((acc, s) => ({ leads: acc.leads + s.leads, zones: acc.zones + s.zones }), { leads: 0, zones: 0 });
@@ -1776,7 +1804,7 @@ function ViewerNav({ areas, activeArea, activeShot, selectedRep, setSelectedRep,
             </div>
             <div className="mb-2 grid grid-cols-4 gap-1.5">
               <button onClick={() => setSelectedRep("All")} className={`rounded-xl px-2 py-2 text-xs font-black ring-1 ${selectedRep === "All" ? "bg-[#27AE60] text-black ring-[#27AE60]" : "bg-black/40 text-white/70 ring-white/10"}`}>All</button>
-              {CAR_GROUPS.map((g) => {
+              {groups.map((g) => {
                 const active = selectedRep === g.id;
                 const leads = teamStats.filter((x) => g.reps.includes(x.rep)).reduce((sum, x) => sum + x.leads, 0);
                 return <button key={g.id} onClick={() => setSelectedRep(g.id)} className={`rounded-xl px-2 py-2 text-xs font-black ring-1 ${active ? "bg-[#D7FF00] text-[#05052d] ring-[#D7FF00]" : "bg-black/40 text-white/70 ring-white/10"}`}>{g.name} <span className="opacity-70">{leads}</span></button>;
@@ -1934,18 +1962,48 @@ function ManualBox({ manualRep, setManualRep, polygon, clear, saveManual, admin,
   );
 }
 
-function RepFilter({ selectedRep, setSelectedRep }) {
+function RepFilter({ selectedRep, setSelectedRep, carGroups = CAR_GROUPS, setCarGroups }) {
+  const groups = carGroups || CAR_GROUPS;
+  const updateGroupName = (id, name) => setCarGroups?.(groups.map((g) => g.id === id ? { ...g, name } : g));
+  const toggleRepInGroup = (id, rep) => setCarGroups?.(groups.map((g) => {
+    if (g.id !== id) return g;
+    const reps = g.reps || [];
+    return { ...g, reps: reps.includes(rep) ? reps.filter((r) => r !== rep) : [...reps, rep] };
+  }));
+  const addGroup = () => setCarGroups?.([...groups, { id: `car-${Date.now()}`, name: `Car ${groups.length + 1}`, reps: [] }]);
+  const deleteGroup = (id) => setCarGroups?.(groups.filter((g) => g.id !== id));
+
   return (
     <Panel>
-      <h2 className="mb-4 flex items-center text-2xl font-black"><Filter className="mr-2" /> Rep Groups</h2>
+      <div className="mb-4 flex items-center justify-between gap-2">
+        <h2 className="flex items-center text-2xl font-black"><Filter className="mr-2" /> Rep / Car Groups</h2>
+        <button type="button" onClick={addGroup} className="rounded-xl bg-[#D7FF00] px-3 py-2 text-xs font-black text-[#05052d]">Add Car</button>
+      </div>
       <div className="mb-3 grid grid-cols-2 gap-2">
         <button onClick={() => setSelectedRep("All")} className={`rounded-2xl px-4 py-3 text-lg font-black ${selectedRep === "All" ? "bg-[#D7FF00] text-[#05052d]" : "bg-white/[0.08]"}`}>All</button>
-        {CAR_GROUPS.map((g) => (
+        {groups.map((g) => (
           <button key={g.id} onClick={() => setSelectedRep(g.id)} className={`rounded-2xl px-4 py-3 text-lg font-black ${selectedRep === g.id ? "bg-[#D7FF00] text-[#05052d]" : "bg-white/[0.08]"}`}>{g.name}</button>
         ))}
       </div>
       <div className="grid grid-cols-2 gap-2">
         {REPS.map((r) => <button key={r} onClick={() => setSelectedRep(r)} className={`rounded-2xl px-4 py-3 text-left text-base font-black ${selectedRep === r ? "bg-black text-[#27AE60]" : "bg-white/[0.08]"}`}><span className="mr-2 inline-block h-3 w-3 rounded-full" style={{ backgroundColor: repColor(r) }} />{r}</button>)}
+      </div>
+      <div className="mt-4 space-y-3 rounded-2xl bg-black/30 p-3">
+        <p className="text-xs font-black uppercase tracking-widest text-[#D7FF00]">Edit Car Groups</p>
+        {groups.map((g) => (
+          <div key={g.id} className="rounded-2xl bg-white/[0.07] p-3">
+            <div className="mb-2 flex gap-2">
+              <input value={g.name} onChange={(e) => updateGroupName(g.id, e.target.value)} className="min-w-0 flex-1 rounded-xl bg-white px-3 py-2 text-sm font-black text-black" />
+              <button type="button" onClick={() => deleteGroup(g.id)} className="rounded-xl bg-red-950/80 px-3 py-2 text-xs font-black text-red-200">Delete</button>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {REPS.map((r) => {
+                const active = (g.reps || []).includes(r);
+                return <button type="button" key={r} onClick={() => toggleRepInGroup(g.id, r)} className={`rounded-full px-2.5 py-1 text-[11px] font-black ring-1 ${active ? "bg-[#27AE60] text-black ring-[#27AE60]" : "bg-black/40 text-white/55 ring-white/10"}`}><span className="mr-1 inline-block h-2 w-2 rounded-full" style={{ backgroundColor: repColor(r) }} />{r}</button>;
+              })}
+            </div>
+          </div>
+        ))}
       </div>
     </Panel>
   );
