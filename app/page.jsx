@@ -32,6 +32,11 @@ import {
 } from "lucide-react";
 
 const REPS = ["JJ", "Christian", "Zack", "Chris", "Jacob", "Dylan", "Aeden", "Jeremy", "Ayden", "Quad", "Jarvis", "Caleb"];
+const CAR_GROUPS = [
+  { id: "car-1", name: "Car 1", reps: ["JJ", "Christian", "Zack", "Chris"] },
+  { id: "car-2", name: "Car 2", reps: ["Jacob", "Dylan", "Aeden", "Jeremy"] },
+  { id: "car-3", name: "Car 3", reps: ["Ayden", "Quad", "Jarvis", "Caleb"] },
+];
 const DB_NAME = "gff-os-kinetic-v1-cloud-backup";
 const STORE = "state";
 const KEY = "app";
@@ -79,9 +84,9 @@ const DEFAULT_APP = {
   },
   options: {
     sensitivity: 5,
-    expectedDotArea: 170,
-    maxBlobMultiplier: 8,
-    splitOverlaps: true,
+    expectedDotArea: 220,
+    maxBlobMultiplier: 5,
+    splitOverlaps: false,
     cropLeft: 0,
     cropRight: 1,
     cropTop: 0,
@@ -290,11 +295,11 @@ function detectDotsForPreset(imageData, preset, options) {
       if (boxW < 3 || boxH < 3 || aspect < 0.16 || aspect > 6) continue;
 
       const estimated = Math.max(1, Math.round(blob.area / options.expectedDotArea));
-      const looksLikeNormalDot = blob.area < options.expectedDotArea * 1.65;
+      const looksLikeNormalDot = blob.area < options.expectedDotArea * 2.4 || Math.max(boxW, boxH) < 28;
       if (!options.splitOverlaps || estimated <= 1 || looksLikeNormalDot) {
         dots.push({ ...blob, type: preset.key, confidence: "direct" });
       } else {
-        const count = Math.min(estimated, 6);
+        const count = Math.min(estimated, 4);
         const cols = Math.ceil(Math.sqrt(count));
         const rows = Math.ceil(count / cols);
         let placed = 0;
@@ -320,11 +325,21 @@ function detectDotsForPreset(imageData, preset, options) {
   return dots;
 }
 
+function dedupeDots(dots, minDist = 18) {
+  const sorted = [...dots].sort((a, b) => (b.area || 0) - (a.area || 0));
+  const kept = [];
+  for (const dot of sorted) {
+    const tooClose = kept.some((k) => Math.hypot(k.x - dot.x, k.y - dot.y) < minDist);
+    if (!tooClose) kept.push(dot);
+  }
+  return kept.sort((a, b) => a.y - b.y || a.x - b.x);
+}
+
 function detectAll(canvas, options) {
   const ctx = canvas.getContext("2d", { willReadFrequently: true });
   const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
   const out = {};
-  for (const preset of DOT_PRESETS) out[preset.key] = detectDotsForPreset(imageData, preset, options);
+  for (const preset of DOT_PRESETS) out[preset.key] = dedupeDots(detectDotsForPreset(imageData, preset, options), preset.key === "lead" ? 18 : 22);
   return out;
 }
 
@@ -374,6 +389,21 @@ const REP_COLORS = {
 
 function repColor(rep) {
   return REP_COLORS[rep] || "#ffffff";
+}
+
+function groupForFilter(filter) {
+  return CAR_GROUPS.find((g) => g.id === filter || g.name === filter) || null;
+}
+
+function repsForFilter(filter) {
+  if (filter === "All") return REPS;
+  const group = groupForFilter(filter);
+  return group ? group.reps : [filter];
+}
+
+function filterLabel(filter) {
+  const group = groupForFilter(filter);
+  return group ? group.name : filter;
 }
 
 function distance(a, b) {
@@ -703,7 +733,9 @@ export default function GFFOSOps() {
 
   const visibleTurfs = useMemo(() => {
     const byShot = (activeArea?.turfs || []).filter((t) => activeShot && t.screenshotId === activeShot.id);
-    return selectedRep === "All" ? byShot : byShot.filter((t) => t.rep === selectedRep);
+    if (selectedRep === "All") return byShot;
+    const allowed = repsForFilter(selectedRep);
+    return byShot.filter((t) => allowed.includes(t.rep));
   }, [activeArea, activeShot, selectedRep]);
 
   const selectedTurf = useMemo(() => visibleTurfs.find((t) => t.id === selectedTurfId) || null, [visibleTurfs, selectedTurfId]);
@@ -1234,15 +1266,18 @@ export default function GFFOSOps() {
 }
 
 function drawDot(ctx, dot, color) {
+  const r = Math.max(5, Math.min(10, dot.radius || 7));
   ctx.beginPath();
-  ctx.arc(dot.x, dot.y, Math.max(8, dot.radius + 4), 0, Math.PI * 2);
-  ctx.lineWidth = 4;
+  ctx.arc(dot.x, dot.y, r + 2, 0, Math.PI * 2);
+  ctx.lineWidth = dot.confidence === "manual" ? 4 : 2;
   ctx.strokeStyle = color;
+  ctx.globalAlpha = dot.confidence === "estimated" ? 0.72 : 0.92;
   ctx.stroke();
   ctx.beginPath();
-  ctx.arc(dot.x, dot.y, 2.5, 0, Math.PI * 2);
+  ctx.arc(dot.x, dot.y, Math.max(2.5, r * 0.35), 0, Math.PI * 2);
   ctx.fillStyle = color;
   ctx.fill();
+  ctx.globalAlpha = 1;
 }
 
 function drawTurf(ctx, turf, selected = false) {
@@ -1563,6 +1598,7 @@ function Header({ mode, setMode, admin }) {
 }
 
 function FloatingTools({ mode, setMode, admin }) {
+  const [open, setOpen] = useState(false);
   const tabs = admin
     ? [
         ["manual", <Scissors />, "Turf"],
@@ -1576,13 +1612,25 @@ function FloatingTools({ mode, setMode, admin }) {
       ]
     : [["manual", <Map />, "Map"], ["team", <Users />, "Team"]];
 
+  const current = tabs.find(([key]) => key === mode) || tabs[0];
+
   return (
-    <div className="fixed bottom-4 left-1/2 z-50 flex max-w-[calc(100vw-1rem)] -translate-x-1/2 gap-1.5 overflow-x-auto rounded-2xl border border-[#D7FF00]/30 bg-[#05052d]/95 p-1.5 shadow-2xl shadow-black/50 backdrop-blur-xl xl:left-auto xl:right-4 xl:top-1/2 xl:bottom-auto xl:translate-x-0 xl:-translate-y-1/2 xl:flex-col xl:overflow-visible">
-      {tabs.map(([key, icon, label]) => (
-        <button key={key} type="button" onClick={() => setMode(key)} className={`flex min-h-11 min-w-[76px] items-center justify-center rounded-xl px-3 text-xs font-black transition xl:min-w-[92px] ${mode === key ? "bg-[#D7FF00] text-[#05052d] shadow-lg shadow-[#D7FF00]/20" : "bg-black/45 text-white/75 hover:bg-white/10"}`}>
-          {React.cloneElement(icon, { className: "mr-1.5 h-4 w-4" })}{label}
-        </button>
-      ))}
+    <div className="fixed right-3 top-1/2 z-50 -translate-y-1/2">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="mb-2 flex h-14 w-14 items-center justify-center rounded-2xl border border-[#D7FF00]/40 bg-[#05052d] text-[#D7FF00] shadow-2xl shadow-black/50"
+        title="Tools"
+      >
+        {React.cloneElement(current[1], { className: "h-6 w-6" })}
+      </button>
+      <div className={`${open ? "flex" : "hidden xl:flex"} flex-col gap-1.5 rounded-2xl border border-[#D7FF00]/30 bg-[#05052d]/95 p-1.5 shadow-2xl shadow-black/50 backdrop-blur-xl`}>
+        {tabs.map(([key, icon, label]) => (
+          <button key={key} type="button" onClick={() => { setMode(key); setOpen(false); }} className={`flex min-h-11 min-w-[94px] items-center justify-start rounded-xl px-3 text-xs font-black transition ${mode === key ? "bg-[#D7FF00] text-[#05052d] shadow-lg shadow-[#D7FF00]/20" : "bg-black/45 text-white/75 hover:bg-white/10"}`}>
+            {React.cloneElement(icon, { className: "mr-1.5 h-4 w-4" })}{label}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
@@ -1669,12 +1717,16 @@ function Admin({ admin, pin, setPin, unlock, exportData, resetData, compact, loc
 
 function ViewerNav({ areas, activeArea, activeShot, selectedRep, setSelectedRep, switchArea, switchShot, stepArea, stepShot, teamStats }) {
   const shots = activeArea?.screenshots || [];
-  const repStats = teamStats.find((r) => r.rep === selectedRep) || null;
+  const selectedLabel = filterLabel(selectedRep);
+  const selectedReps = repsForFilter(selectedRep);
+  const selectedTotals = selectedRep === "All"
+    ? teamStats.reduce((acc, s) => ({ leads: acc.leads + s.leads, zones: acc.zones + s.zones }), { leads: 0, zones: 0 })
+    : teamStats.filter((s) => selectedReps.includes(s.rep)).reduce((acc, s) => ({ leads: acc.leads + s.leads, zones: acc.zones + s.zones }), { leads: 0, zones: 0 });
 
   return (
     <div className="mb-4">
       <Panel>
-        <div className="grid gap-3 lg:grid-cols-[1fr_1fr_auto]">
+        <div className="grid gap-3 lg:grid-cols-[1fr_1fr_1.25fr]">
           <div>
             <div className="mb-2 flex items-center justify-between gap-2">
               <p className="text-xs font-black uppercase tracking-widest text-[#27AE60]/70">Area</p>
@@ -1709,21 +1761,31 @@ function ViewerNav({ areas, activeArea, activeShot, selectedRep, setSelectedRep,
             </div>
           </div>
 
-          <div className="min-w-[220px]">
-            <p className="mb-2 text-xs font-black uppercase tracking-widest text-[#27AE60]/70">See Leads</p>
-            <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-5 lg:grid-cols-3">
-              {["All", ...REPS].map((r) => {
+          <div>
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <p className="text-xs font-black uppercase tracking-widest text-[#27AE60]/70">Rep / Car View</p>
+              <span className="rounded-full bg-black px-3 py-1 text-xs font-black text-[#D7FF00]">{selectedLabel}: {selectedTotals.leads}</span>
+            </div>
+            <div className="mb-2 grid grid-cols-4 gap-1.5">
+              <button onClick={() => setSelectedRep("All")} className={`rounded-xl px-2 py-2 text-xs font-black ring-1 ${selectedRep === "All" ? "bg-[#27AE60] text-black ring-[#27AE60]" : "bg-black/40 text-white/70 ring-white/10"}`}>All</button>
+              {CAR_GROUPS.map((g) => {
+                const active = selectedRep === g.id;
+                const leads = teamStats.filter((x) => g.reps.includes(x.rep)).reduce((sum, x) => sum + x.leads, 0);
+                return <button key={g.id} onClick={() => setSelectedRep(g.id)} className={`rounded-xl px-2 py-2 text-xs font-black ring-1 ${active ? "bg-[#D7FF00] text-[#05052d] ring-[#D7FF00]" : "bg-black/40 text-white/70 ring-white/10"}`}>{g.name} <span className="opacity-70">{leads}</span></button>;
+              })}
+            </div>
+            <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-4 xl:grid-cols-6">
+              {REPS.map((r) => {
                 const active = selectedRep === r;
                 const stat = teamStats.find((x) => x.rep === r);
                 return (
                   <button key={r} onClick={() => setSelectedRep(r)} className={`rounded-xl px-2 py-2 text-xs font-black ring-1 ${active ? "bg-[#27AE60] text-black ring-[#27AE60]" : "bg-black/40 text-white/70 ring-white/10"}`}>
-                    {r === "All" ? "All" : <><span className="mr-1 inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: repColor(r) }} />{r}</>}
-                    {stat && r !== "All" && <span className="ml-1 text-[10px] opacity-70">{stat.leads}</span>}
+                    <span className="mr-1 inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: repColor(r) }} />{r}
+                    {stat && <span className="ml-1 text-[10px] opacity-70">{stat.leads}</span>}
                   </button>
                 );
               })}
             </div>
-            {selectedRep !== "All" && repStats && <p className="mt-2 text-xs font-bold text-white/45">{selectedRep}: {repStats.leads} leads • {repStats.zones} zones</p>}
           </div>
         </div>
       </Panel>
@@ -1864,8 +1926,37 @@ function ManualBox({ manualRep, setManualRep, polygon, clear, saveManual, admin,
   );
 }
 
-function RepFilter({ selectedRep, setSelectedRep }) { return <Panel><h2 className="mb-4 flex items-center text-2xl font-black"><Filter className="mr-2" /> Map Filter</h2><div className="grid grid-cols-2 gap-2">{["All", ...REPS].map((r) => <button key={r} onClick={() => setSelectedRep(r)} className={`rounded-2xl px-4 py-3 text-lg font-black ${selectedRep === r ? "bg-black text-[#27AE60]" : "bg-white/[0.08]"}`}>{r}</button>)}</div></Panel>; }
-function Tuning({ options, setOptions, reCount }) { return <Panel><h2 className="mb-4 flex items-center text-2xl font-black"><Wand2 className="mr-2" /> Dot Fixer</h2><Slider label="Sensitivity" value={options.sensitivity} min={0} max={10} step={1} onChange={(v) => setOptions({ ...options, sensitivity: Number(v) })} /><Slider label="Dot Size" value={options.expectedDotArea} min={60} max={520} step={10} onChange={(v) => setOptions({ ...options, expectedDotArea: Number(v) })} /><label className="mb-3 flex items-center justify-between rounded-2xl bg-black/35 p-3 text-sm font-black"><span>Split clumped dots</span><input type="checkbox" checked={!!options.splitOverlaps} onChange={(e) => setOptions({ ...options, splitOverlaps: e.target.checked })} className="h-5 w-5 accent-[#27AE60]" /></label><button onClick={reCount} className="mt-4 w-full rounded-2xl bg-[#D7FF00] py-4 text-xl font-black text-[#05052d]">Recount + keep manual dots</button><p className="mt-2 text-xs font-bold text-white/45">Use + Dot from the side/bottom toolbar for any missed lead the detector skips.</p></Panel>; }
+function RepFilter({ selectedRep, setSelectedRep }) {
+  return (
+    <Panel>
+      <h2 className="mb-4 flex items-center text-2xl font-black"><Filter className="mr-2" /> Rep Groups</h2>
+      <div className="mb-3 grid grid-cols-2 gap-2">
+        <button onClick={() => setSelectedRep("All")} className={`rounded-2xl px-4 py-3 text-lg font-black ${selectedRep === "All" ? "bg-[#D7FF00] text-[#05052d]" : "bg-white/[0.08]"}`}>All</button>
+        {CAR_GROUPS.map((g) => (
+          <button key={g.id} onClick={() => setSelectedRep(g.id)} className={`rounded-2xl px-4 py-3 text-lg font-black ${selectedRep === g.id ? "bg-[#D7FF00] text-[#05052d]" : "bg-white/[0.08]"}`}>{g.name}</button>
+        ))}
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        {REPS.map((r) => <button key={r} onClick={() => setSelectedRep(r)} className={`rounded-2xl px-4 py-3 text-left text-base font-black ${selectedRep === r ? "bg-black text-[#27AE60]" : "bg-white/[0.08]"}`}><span className="mr-2 inline-block h-3 w-3 rounded-full" style={{ backgroundColor: repColor(r) }} />{r}</button>)}
+      </div>
+    </Panel>
+  );
+}
+
+function Tuning({ options, setOptions, reCount }) {
+  return (
+    <Panel>
+      <h2 className="mb-4 flex items-center text-2xl font-black"><Wand2 className="mr-2" /> Dot Fixer</h2>
+      <Slider label="Sensitivity" value={options.sensitivity} min={0} max={10} step={1} onChange={(v) => setOptions({ ...options, sensitivity: Number(v) })} />
+      <Slider label="Dot Size" value={options.expectedDotArea} min={80} max={520} step={10} onChange={(v) => setOptions({ ...options, expectedDotArea: Number(v) })} />
+      <label className="mb-3 flex items-center justify-between rounded-2xl bg-black/35 p-3 text-sm font-black"><span>Split clumped dots</span><input type="checkbox" checked={!!options.splitOverlaps} onChange={(e) => setOptions({ ...options, splitOverlaps: e.target.checked })} className="h-5 w-5 accent-[#27AE60]" /></label>
+      <button type="button" onClick={() => setOptions({ ...options, splitOverlaps: false, expectedDotArea: 220, sensitivity: 4 })} className="mb-3 w-full rounded-2xl bg-white/10 py-3 text-sm font-black text-white">Calm the dots</button>
+      <button onClick={reCount} className="w-full rounded-2xl bg-[#D7FF00] py-4 text-xl font-black text-[#05052d]">Recount + keep manual dots</button>
+      <p className="mt-2 text-xs font-bold text-white/45">If the overlay looks like little flower clusters, hit Calm the dots, then Recount. Use + Dot for missed leads.</p>
+    </Panel>
+  );
+}
+
 function Slider({ label, value, min, max, step, onChange }) { return <label className="mb-4 block"><div className="mb-2 flex justify-between text-lg font-black"><span>{label}</span><span>{value}</span></div><input type="range" min={min} max={max} step={step} value={value} onChange={(e) => onChange(e.target.value)} className="w-full accent-[#27AE60]" /></label>; }
 function MapPanel({ fileRef, upload, activeShot, canvasRef, overlayRef, canvasClick, mode, showDots, setShowDots, showTurf, setShowTurf, showSold, setShowSold, uploadEnabled, startDrag, moveDrag, stopDrag, editMode, startSwipe, endSwipe, handleTouchStart, handleTouchMove, handleTouchEnd }) {
   return (
@@ -1971,7 +2062,7 @@ function TeamView({ teamStats, teamRep, setTeamRep, teamTurfs, admin, deleteTurf
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="flex items-center text-2xl font-black sm:text-3xl"><Users className="mr-2 h-7 w-7" /> Team Tool</h2>
-            <p className="text-sm font-bold text-white/45">Pick a rep, open their turf, or jump to the separate quote builder.</p>
+            <p className="text-sm font-bold text-white/45">Pick a rep or car group, open their turf, or jump to the separate quote builder.</p>
           </div>
           <div className="grid w-full grid-cols-2 gap-2 sm:w-auto">
             <button type="button" onClick={() => { setSelectedRep(teamRep); setMode("manual"); }} className="rounded-xl bg-[#27AE60] px-4 py-3 text-sm font-black text-black">Open {teamRep}'s Map</button>
