@@ -59,13 +59,14 @@ const DEFAULT_APP = {
   ],
   sales: {
     currentBill: 100,
-    activePlanId: "kinetic-1g",
+    activePlanId: "fiber-1g",
     selectedAddonIds: [],
     plans: [
-      { id: "kinetic-300", name: "Kinetic 300", speed: "300 Mbps", price: 39.99, badge: "Starter", bullets: ["Everyday streaming", "Phones and laptops", "Smaller homes"] },
-      { id: "kinetic-500", name: "Kinetic 500", speed: "500 Mbps", price: 49.99, badge: "Solid value", bullets: ["Streaming", "Video calls", "Smart devices"] },
-      { id: "kinetic-1g", name: "Kinetic 1 Gig", speed: "1 Gig", price: 69.99, badge: "Most popular", bullets: ["Busy households", "Gaming", "Work from home"] },
-      { id: "kinetic-2g", name: "Kinetic 2 Gig", speed: "2 Gig", price: 99.99, badge: "Power home", bullets: ["Heavy usage", "Max headroom", "Future-proof setup"] },
+      { id: "fiber-100", name: "Fiber 100", speed: "100 Mbps", price: 19.99, badge: "Saver", bullets: ["Email, browsing, video chat", "Small homes", "Budget option"] },
+      { id: "fiber-300", name: "Fiber 300", speed: "300 Mbps", price: 34.99, badge: "Everyday", bullets: ["Streaming video", "Day-to-day internet", "AT&T customers may save $20/mo"] },
+      { id: "fiber-1g", name: "Fiber 1 Gig", speed: "1 Gig", price: 39.99, badge: "Best value", bullets: ["Work from home and gaming", "Fast upload speeds", "AT&T customers may save $20/mo"] },
+      { id: "fiber-2g", name: "Fiber 2 Gig", speed: "2 Gig", price: 59.99, badge: "Ultra fast", bullets: ["Large smart homes", "Dozens of devices", "Wi-Fi 7 capable"] },
+      { id: "fiber-max-2g", name: "Fiber Max 2 Gig", speed: "2 Gig", price: 79.99, badge: "Equipment + security", bullets: ["Premium Wi-Fi Gateway", "Kinetic Secure Plus", "24/7 premium support"] },
     ],
     addons: [
       { id: "router", name: "Kinetic Gateway", price: 10.99, note: "Router rental / Wi-Fi gateway." },
@@ -357,14 +358,18 @@ function polygonBounds(points) {
 }
 
 const REP_COLORS = {
-  JJ: "#f5c542",
-  Sam: "#ef4444",
-  Zack: "#3b82f6",
-  Dylan: "#22c55e",
-  Julian: "#a855f7",
-  Chris: "#f97316",
-  Christian: "#06b6d4",
-  Jacob: "#ec4899",
+  JJ: "#FFD000",
+  Christian: "#00AEEF",
+  Zack: "#4F7BFF",
+  Chris: "#FF7A1A",
+  Jacob: "#FF4FA3",
+  Dylan: "#20C46B",
+  Aeden: "#9B5CFF",
+  Jeremy: "#FF3B30",
+  Ayden: "#00C2A8",
+  Quad: "#B8F000",
+  Jarvis: "#FFB000",
+  Caleb: "#8B5E3C",
 };
 
 function repColor(rep) {
@@ -1153,10 +1158,10 @@ export default function GFFOSOps() {
     drawOverlay();
   }, [drawOverlay, mode, selectedRep]);
 
-  if (!loaded) return <main className="grid min-h-screen place-items-center bg-[#0a0a0a] text-[#22c55e]"><div className="text-4xl font-black">Loading GFF OS...</div></main>;
+  if (!loaded) return <main className="grid min-h-screen place-items-center bg-[#0a0a0a] text-[#27AE60]"><div className="text-4xl font-black">Loading GFF OS...</div></main>;
 
   return (
-    <main className="min-h-screen bg-[#0b0f14] text-[#f8fafc]" style={{ fontFamily: "Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif" }}>
+    <main className="min-h-screen bg-[#05052d] text-[#f8fafc]" style={{ fontFamily: "Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif" }}>
       <OldIpadStyleFix />
       <SharkBg />
       <section className="relative mx-auto max-w-[1540px] px-3 py-4 sm:px-6 lg:px-8">
@@ -1302,14 +1307,14 @@ function SalesDoorControls({ sales, patchSales }) {
 
   return (
     <Panel>
-      <h2 className="mb-3 flex items-center text-xl font-black"><DollarSign className="mr-2 h-5 w-5 text-[#22c55e]" /> Sales Flow</h2>
-      <label className="text-xs font-black uppercase tracking-widest text-[#22c55e]/70">Customer pays now</label>
-      <input value={sales.currentBill || ""} onChange={(e) => patchSales({ currentBill: e.target.value })} inputMode="decimal" placeholder="100" className="mt-2 w-full rounded-xl border-2 border-[#22c55e]/25 bg-black/45 px-4 py-4 text-2xl font-black text-white outline-none focus:border-[#22c55e]" />
+      <h2 className="mb-3 flex items-center text-xl font-black"><DollarSign className="mr-2 h-5 w-5 text-[#27AE60]" /> Sales Flow</h2>
+      <label className="text-xs font-black uppercase tracking-widest text-[#27AE60]/70">Customer pays now</label>
+      <input value={sales.currentBill || ""} onChange={(e) => patchSales({ currentBill: e.target.value })} inputMode="decimal" placeholder="100" className="mt-2 w-full rounded-xl border-2 border-[#27AE60]/25 bg-black/45 px-4 py-4 text-2xl font-black text-white outline-none focus:border-[#27AE60]" />
 
       <div className="mt-4 space-y-2">
-        <p className="text-xs font-black uppercase tracking-widest text-[#22c55e]/70">Pick our plan</p>
+        <p className="text-xs font-black uppercase tracking-widest text-[#27AE60]/70">Pick our plan</p>
         {(sales.plans || []).map((plan) => (
-          <button key={plan.id} onClick={() => patchSales({ activePlanId: plan.id })} className={`w-full rounded-xl px-3 py-3 text-left text-sm font-black ring-1 ${math.activePlan.id === plan.id ? "bg-[#22c55e] text-black ring-[#22c55e]" : "bg-black/35 text-white/75 ring-white/10"}`}>
+          <button key={plan.id} onClick={() => patchSales({ activePlanId: plan.id })} className={`w-full rounded-xl px-3 py-3 text-left text-sm font-black ring-1 ${math.activePlan.id === plan.id ? "bg-[#27AE60] text-black ring-[#27AE60]" : "bg-black/35 text-white/75 ring-white/10"}`}>
             <span className="block">{plan.name} • {money(plan.price)}</span>
             <span className="text-xs opacity-70">{plan.speed}</span>
           </button>
@@ -1317,7 +1322,7 @@ function SalesDoorControls({ sales, patchSales }) {
       </div>
 
       <div className="mt-4 space-y-2">
-        <p className="text-xs font-black uppercase tracking-widest text-[#22c55e]/70">Add-ons</p>
+        <p className="text-xs font-black uppercase tracking-widest text-[#27AE60]/70">Add-ons</p>
         {(sales.addons || []).map((addon) => {
           const active = (sales.selectedAddonIds || []).includes(addon.id);
           return <button key={addon.id} onClick={() => toggleAddon(addon.id)} className={`w-full rounded-xl px-3 py-3 text-left text-sm font-black ring-1 ${active ? "bg-red-700 text-white ring-red-400" : "bg-black/35 text-white/75 ring-white/10"}`}>{active ? "✓ " : "+ "}{addon.name} • {money(addon.price)}</button>;
@@ -1337,11 +1342,11 @@ function SalesFlow({ sales, patchSales }) {
       <Panel>
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <p className="text-xs font-black uppercase tracking-[.25em] text-[#22c55e]/70">Digital laminated paper</p>
+            <p className="text-xs font-black uppercase tracking-[.25em] text-[#27AE60]/70">Digital laminated paper</p>
             <h2 className="text-3xl font-black tracking-[-0.05em] sm:text-5xl">Fiber Sales Card</h2>
           </div>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            {steps.map(([key, label]) => <button key={key} onClick={() => setStep(key)} className={`rounded-xl px-3 py-3 text-sm font-black ${step === key ? "bg-[#22c55e] text-black" : "bg-black/45 text-white/70"}`}>{label}</button>)}
+            {steps.map(([key, label]) => <button key={key} onClick={() => setStep(key)} className={`rounded-xl px-3 py-3 text-sm font-black ${step === key ? "bg-[#27AE60] text-black" : "bg-black/45 text-white/70"}`}>{label}</button>)}
           </div>
         </div>
       </Panel>
@@ -1359,15 +1364,15 @@ function FiberExplainer({ sales, goNext }) {
     <Panel>
       <div className="grid gap-4 lg:grid-cols-[1.1fr_.9fr]">
         <div>
-          <div className="mb-4 inline-flex rounded-full bg-[#22c55e] px-4 py-2 text-xs font-black uppercase tracking-widest text-black">Start here</div>
+          <div className="mb-4 inline-flex rounded-full bg-[#27AE60] px-4 py-2 text-xs font-black uppercase tracking-widest text-black">Start here</div>
           <h3 className="mb-3 text-4xl font-black tracking-[-0.06em] sm:text-6xl">Fiber is internet built on light.</h3>
           <p className="text-lg font-bold text-white/65 sm:text-xl">Simple version: old internet is like a crowded road. Fiber is a cleaner, faster lane that can move way more data without choking.</p>
-          <button onClick={goNext} className="mt-5 inline-flex items-center rounded-2xl bg-[#22c55e] px-5 py-4 text-base font-black text-black">Compare their bill <ArrowRight className="ml-2 h-5 w-5" /></button>
+          <button onClick={goNext} className="mt-5 inline-flex items-center rounded-2xl bg-[#27AE60] px-5 py-4 text-base font-black text-black">Compare their bill <ArrowRight className="ml-2 h-5 w-5" /></button>
         </div>
         <div className="grid gap-3">
           {(sales.fiberPoints || []).map((point, i) => (
-            <div key={i} className="rounded-3xl border border-[#22c55e]/15 bg-black/30 p-4">
-              <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-2xl bg-[#22c55e] text-black"><Zap className="h-5 w-5" /></div>
+            <div key={i} className="rounded-3xl border border-[#27AE60]/15 bg-black/30 p-4">
+              <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-2xl bg-[#27AE60] text-black"><Zap className="h-5 w-5" /></div>
               <p className="text-lg font-black text-white">{point}</p>
             </div>
           ))}
@@ -1384,9 +1389,9 @@ function BillCompare({ sales, patchSales, math, goNext }) {
       <div className="grid gap-4 md:grid-cols-2">
         <div className="rounded-3xl bg-black/35 p-5 ring-1 ring-white/10">
           <p className="mb-2 text-xs font-black uppercase tracking-widest text-white/45">Their current bill</p>
-          <div className="flex items-center gap-2"><span className="text-4xl font-black text-[#22c55e]">$</span><input value={sales.currentBill || ""} onChange={(e) => patchSales({ currentBill: e.target.value })} inputMode="decimal" className="w-full rounded-2xl border-2 border-[#22c55e]/25 bg-black/55 px-4 py-4 text-5xl font-black text-white outline-none focus:border-[#22c55e]" /></div>
+          <div className="flex items-center gap-2"><span className="text-4xl font-black text-[#27AE60]">$</span><input value={sales.currentBill || ""} onChange={(e) => patchSales({ currentBill: e.target.value })} inputMode="decimal" className="w-full rounded-2xl border-2 border-[#27AE60]/25 bg-black/55 px-4 py-4 text-5xl font-black text-white outline-none focus:border-[#27AE60]" /></div>
         </div>
-        <div className="rounded-3xl bg-[#22c55e] p-5 text-black">
+        <div className="rounded-3xl bg-[#27AE60] p-5 text-black">
           <p className="mb-2 text-xs font-black uppercase tracking-widest opacity-60">Our current setup</p>
           <p className="text-4xl font-black tracking-[-0.05em]">{math.activePlan.name}</p>
           <p className="text-xl font-black opacity-70">{math.activePlan.speed} • {money(math.ourTotal)}/mo</p>
@@ -1409,7 +1414,7 @@ function PlanChooser({ sales, patchSales, math, goNext }) {
       <div className="grid gap-3 lg:grid-cols-3">
         {(sales.plans || []).map((plan) => {
           const active = math.activePlan.id === plan.id;
-          return <button key={plan.id} onClick={() => patchSales({ activePlanId: plan.id })} className={`rounded-3xl p-5 text-left ring-2 ${active ? "bg-[#22c55e] text-black ring-[#22c55e]" : "bg-black/30 text-white ring-white/10"}`}>
+          return <button key={plan.id} onClick={() => patchSales({ activePlanId: plan.id })} className={`rounded-3xl p-5 text-left ring-2 ${active ? "bg-[#27AE60] text-black ring-[#27AE60]" : "bg-black/30 text-white ring-white/10"}`}>
             <p className="mb-2 inline-flex rounded-full bg-black/20 px-3 py-1 text-xs font-black uppercase tracking-widest">{plan.badge}</p>
             <h4 className="text-3xl font-black tracking-[-0.05em]">{plan.name}</h4>
             <p className="text-xl font-black opacity-75">{plan.speed}</p>
@@ -1424,7 +1429,7 @@ function PlanChooser({ sales, patchSales, math, goNext }) {
           return <button key={addon.id} onClick={() => toggleAddon(addon.id)} className={`rounded-2xl px-4 py-4 text-left font-black ring-1 ${active ? "bg-red-700 text-white ring-red-400" : "bg-black/30 text-white/75 ring-white/10"}`}>{active ? "✓ " : "+ "}{addon.name}<span className="block text-sm opacity-70">{money(addon.price)}/mo</span></button>;
         })}
       </div>
-      <button onClick={goNext} className="mt-5 rounded-2xl bg-[#22c55e] px-5 py-4 text-base font-black text-black">Show savings</button>
+      <button onClick={goNext} className="mt-5 rounded-2xl bg-[#27AE60] px-5 py-4 text-base font-black text-black">Show savings</button>
     </Panel>
   );
 }
@@ -1434,7 +1439,7 @@ function SavingsSummary({ math, goBack }) {
   return (
     <Panel>
       <div className="rounded-[2rem] bg-black/35 p-5 ring-1 ring-white/10">
-        <p className="text-xs font-black uppercase tracking-[.25em] text-[#22c55e]/70">Final comparison</p>
+        <p className="text-xs font-black uppercase tracking-[.25em] text-[#27AE60]/70">Final comparison</p>
         <h3 className="mt-2 text-4xl font-black tracking-[-0.06em] sm:text-6xl">{saving ? "They save money." : "This option costs more."}</h3>
         <div className="mt-5 grid gap-3 md:grid-cols-3">
           <Stat label="Now" value={`${money(math.current)}/mo`} />
@@ -1442,7 +1447,7 @@ function SavingsSummary({ math, goBack }) {
           <Stat label={saving ? "Monthly savings" : "Monthly difference"} value={money(Math.abs(math.monthlySave))} pink={!saving} gold={saving} />
         </div>
         <div className="mt-4 grid gap-3 md:grid-cols-2">
-          <div className="rounded-3xl bg-[#22c55e] p-5 text-black"><p className="text-sm font-black uppercase opacity-60">1 year</p><p className="text-5xl font-black tracking-[-0.06em]">{money(Math.abs(math.yearlySave))}</p></div>
+          <div className="rounded-3xl bg-[#27AE60] p-5 text-black"><p className="text-sm font-black uppercase opacity-60">1 year</p><p className="text-5xl font-black tracking-[-0.06em]">{money(Math.abs(math.yearlySave))}</p></div>
           <div className="rounded-3xl bg-red-700 p-5 text-white"><p className="text-sm font-black uppercase opacity-70">3 years</p><p className="text-5xl font-black tracking-[-0.06em]">{money(Math.abs(math.threeYearSave))}</p></div>
         </div>
         <p className="mt-4 text-lg font-bold text-white/60">Selected: {math.activePlan.name} at {money(math.activePlan.price)}/mo{math.selectedAddons.length ? ` + ${math.selectedAddons.map((a) => a.name).join(" + ")}` : ""}</p>
@@ -1465,7 +1470,7 @@ function PricingAdmin({ sales, updateSales }) {
         <p className="mt-1 text-sm font-bold text-white/50">Edit plans and add-ons here. It saves with the rest of the app cloud state.</p>
       </Panel>
       <Panel>
-        <div className="mb-3 flex items-center justify-between"><h3 className="text-xl font-black">Plans</h3><button onClick={addPlan} className="rounded-xl bg-[#22c55e] px-4 py-2 text-sm font-black text-black">Add plan</button></div>
+        <div className="mb-3 flex items-center justify-between"><h3 className="text-xl font-black">Plans</h3><button onClick={addPlan} className="rounded-xl bg-[#27AE60] px-4 py-2 text-sm font-black text-black">Add plan</button></div>
         <div className="space-y-3">
           {(sales.plans || []).map((plan) => <div key={plan.id} className="grid gap-2 rounded-2xl bg-black/30 p-3 md:grid-cols-4">
             <input value={plan.name} onChange={(e) => updatePlan(plan.id, "name", e.target.value)} className="rounded-xl bg-white px-3 py-3 font-black text-black" />
@@ -1476,7 +1481,7 @@ function PricingAdmin({ sales, updateSales }) {
         </div>
       </Panel>
       <Panel>
-        <div className="mb-3 flex items-center justify-between"><h3 className="text-xl font-black">Add-ons</h3><button onClick={addAddon} className="rounded-xl bg-[#22c55e] px-4 py-2 text-sm font-black text-black">Add add-on</button></div>
+        <div className="mb-3 flex items-center justify-between"><h3 className="text-xl font-black">Add-ons</h3><button onClick={addAddon} className="rounded-xl bg-[#27AE60] px-4 py-2 text-sm font-black text-black">Add add-on</button></div>
         <div className="space-y-3">
           {(sales.addons || []).map((addon) => <div key={addon.id} className="grid gap-2 rounded-2xl bg-black/30 p-3 md:grid-cols-3">
             <input value={addon.name} onChange={(e) => updateAddon(addon.id, "name", e.target.value)} className="rounded-xl bg-white px-3 py-3 font-black text-black" />
@@ -1492,54 +1497,65 @@ function PricingAdmin({ sales, updateSales }) {
 function SharkBg() {
   return (
     <div className="pointer-events-none fixed inset-0 overflow-hidden">
-      <div className="absolute -left-28 -top-28 h-[34rem] w-[34rem] rounded-full bg-[#22c55e]/30 blur-3xl" />
+      <div className="absolute -left-28 -top-28 h-[34rem] w-[34rem] rounded-full bg-[#27AE60]/30 blur-3xl" />
       <div className="absolute right-[-10rem] top-24 h-[32rem] w-[32rem] rounded-full bg-white/10 blur-3xl" />
       <div className="absolute bottom-[-12rem] left-1/3 h-[36rem] w-[36rem] rounded-full bg-[#172033]/70 blur-3xl" />
       <div className="absolute left-[12%] top-[22%] rotate-12 text-[15rem] font-black leading-none text-black/[0.035]">GFF</div>
-      <div className="absolute right-[7%] top-[18%] -rotate-12 text-[13rem] font-black leading-none text-[#22c55e]/[0.09]">SHARKS</div>
+      <div className="absolute right-[7%] top-[18%] -rotate-12 text-[13rem] font-black leading-none text-[#27AE60]/[0.09]">SHARKS</div>
       <div className="absolute bottom-[8%] left-[8%] h-24 w-24 rotate-45 rounded-tl-[100%] bg-black/[0.06]" />
-      <div className="absolute bottom-[18%] right-[12%] h-32 w-32 rotate-45 rounded-tl-[100%] bg-[#22c55e]/[0.16]" />
+      <div className="absolute bottom-[18%] right-[12%] h-32 w-32 rotate-45 rounded-tl-[100%] bg-[#27AE60]/[0.16]" />
     </div>
   );
 }
 
 function Header({ mode, setMode, admin }) {
+  const [toolsOpen, setToolsOpen] = useState(false);
   const tabs = admin
     ? [["areas", <Layers />, "Areas"], ["upload", <Upload />, "Upload"], ["count", <Target />, "Count"], ["erase", <Eraser />, "Erase"], ["auto", <Split />, "Auto"], ["manual", <Scissors />, "Map"], ["team", <Users />, "Team"]]
     : [["manual", <Map />, "Map"], ["team", <Users />, "Team"]];
-
+  const activeTab = tabs.find(([key]) => key === mode) || tabs[0];
   const openSalesPage = () => {
     if (typeof window !== "undefined") window.location.href = "/sales";
   };
 
   return (
-    <header className="mb-3 rounded-[1.25rem] border border-[#22c55e]/15 bg-[#101827]/90 p-3 text-center shadow-xl shadow-black/30 backdrop-blur-xl sm:p-4">
+    <header className="mb-3 rounded-[1.25rem] border border-[#D7FF00]/30 bg-[#05052d]/95 p-3 text-center shadow-xl shadow-black/30 backdrop-blur-xl sm:p-4">
       <div className="mx-auto flex max-w-6xl flex-col items-center gap-3">
         <div>
-          <div className="mx-auto mb-2 inline-flex items-center gap-2 rounded-full bg-[#0f253f] px-3 py-1 text-[10px] font-black uppercase tracking-widest text-[#38bdf8] ring-1 ring-red-500/30 sm:text-xs">
-            <Flame className="h-3.5 w-3.5" /> IPAD FIX v4 LIVE • CLOUD SYNC
+          <div className="mx-auto mb-2 inline-flex items-center gap-2 rounded-full bg-[#D7FF00] px-3 py-1 text-[10px] font-black uppercase tracking-widest text-[#05052d] ring-1 ring-[#D7FF00]/60 sm:text-xs">
+            <Flame className="h-3.5 w-3.5" /> GFF OS • KINETIC FIELD MODE
           </div>
           <h1 className="text-3xl font-black tracking-[-0.07em] sm:text-5xl lg:text-6xl">
-            <span className="bg-gradient-to-r from-[#f8fafc] via-[#22c55e] to-[#38bdf8] bg-clip-text text-transparent">GFF OS</span>
+            <span className="bg-gradient-to-r from-white via-[#D7FF00] to-[#27AE60] bg-clip-text text-transparent">GFF OS</span>
           </h1>
         </div>
-        <div className={`grid w-full max-w-4xl gap-1.5 rounded-2xl bg-black/70 p-1.5 ${admin ? "grid-cols-4 sm:grid-cols-4 lg:grid-cols-8" : "grid-cols-3 sm:max-w-xl"}`}>
-          {tabs.map(([key, icon, label]) => (
-            <button key={key} type="button" onClick={() => setMode(key)} className={`flex min-h-9 items-center justify-center rounded-xl px-2 text-xs font-black transition sm:min-h-10 ${mode === key ? "bg-[#22c55e] text-black shadow-lg shadow-[#22c55e]/20" : "text-white/70 hover:bg-white/10"}`}>
-              {React.cloneElement(icon, { className: "mr-1 h-3.5 w-3.5" })}{label}
-            </button>
-          ))}
-          <button type="button" onClick={openSalesPage} className="flex min-h-9 items-center justify-center rounded-xl bg-white px-2 text-xs font-black text-red-700 transition hover:bg-red-50 sm:min-h-10">
-            <DollarSign className="mr-1 h-3.5 w-3.5" /> Quote
+        <div className="grid w-full max-w-3xl grid-cols-2 gap-2 rounded-2xl bg-black/50 p-1.5 sm:grid-cols-[1fr_1fr_auto]">
+          <button type="button" onClick={() => setToolsOpen(!toolsOpen)} className="flex min-h-10 items-center justify-center rounded-xl bg-[#D7FF00] px-3 text-xs font-black text-[#05052d] transition hover:brightness-95">
+            {React.cloneElement(activeTab[1], { className: "mr-1 h-3.5 w-3.5" })} {toolsOpen ? "Close Tools" : `Tool: ${activeTab[2]}`}
+          </button>
+          <button type="button" onClick={openSalesPage} className="flex min-h-10 items-center justify-center rounded-xl bg-white px-3 text-xs font-black text-[#05052d] transition hover:bg-[#f4f4f4]">
+            <DollarSign className="mr-1 h-3.5 w-3.5" /> Quote Builder
+          </button>
+          <button type="button" onClick={() => { setMode("manual"); setToolsOpen(false); }} className="hidden min-h-10 items-center justify-center rounded-xl bg-[#27AE60] px-3 text-xs font-black text-white transition sm:flex">
+            <Map className="mr-1 h-3.5 w-3.5" /> Map
           </button>
         </div>
+        {toolsOpen && (
+          <div className={`grid w-full max-w-4xl gap-1.5 rounded-2xl bg-black/70 p-1.5 ${admin ? "grid-cols-3 sm:grid-cols-4 lg:grid-cols-7" : "grid-cols-2 sm:max-w-xl"}`}>
+            {tabs.map(([key, icon, label]) => (
+              <button key={key} type="button" onClick={() => { setMode(key); setToolsOpen(false); }} className={`flex min-h-10 items-center justify-center rounded-xl px-2 text-xs font-black transition ${mode === key ? "bg-[#D7FF00] text-[#05052d] shadow-lg shadow-[#D7FF00]/20" : "text-white/75 hover:bg-white/10"}`}>
+                {React.cloneElement(icon, { className: "mr-1 h-3.5 w-3.5" })}{label}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     </header>
   );
 }
 
 function Panel({ children }) {
-  return <div className="rounded-[1.5rem] border border-[#22c55e]/15 bg-[#111827]/90 p-4 text-[#f8fafc] shadow-xl shadow-black/25 backdrop-blur-xl sm:p-5">{children}</div>;
+  return <div className="rounded-[1.5rem] border border-[#27AE60]/15 bg-[#080a3d]/90 p-4 text-[#f8fafc] shadow-xl shadow-black/25 backdrop-blur-xl sm:p-5">{children}</div>;
 }
 
 function Board({ totals, activeArea, activeShot, saveStatus, cloudError, lastCloudLoad, lastCloudSave, refreshFromCloudNow }) {
@@ -1550,20 +1566,20 @@ function Board({ totals, activeArea, activeShot, saveStatus, cloudError, lastClo
     <Panel>
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-[10px] font-black uppercase tracking-[.2em] text-[#22c55e]/70">Active</p>
+          <p className="text-[10px] font-black uppercase tracking-[.2em] text-[#27AE60]/70">Active</p>
           <p className="truncate text-sm font-black text-white/80">{activeArea?.name || "No area"}</p>
           <p className="truncate text-xs font-bold text-white/40">{activeShot?.name || "No screenshot"}</p>
         </div>
-        <button onClick={refreshFromCloudNow} className="shrink-0 rounded-xl bg-[#0f253f] px-3 py-2 text-xs font-black text-[#38bdf8] ring-1 ring-red-500/25">
+        <button onClick={refreshFromCloudNow} className="shrink-0 rounded-xl bg-[#0f253f] px-3 py-2 text-xs font-black text-[#00AEEF] ring-1 ring-red-500/25">
           Sync
         </button>
       </div>
 
       <div className="mt-3 grid grid-cols-1 gap-2">
-        <MiniStat label="Leads on this screenshot" value={totals.leads} className="bg-[#22c55e] text-black" />
+        <MiniStat label="Leads on this screenshot" value={totals.leads} className="bg-[#27AE60] text-black" />
       </div>
 
-      <div className="mt-3 rounded-xl border border-[#22c55e]/10 bg-black/25 px-3 py-2 text-xs font-bold text-white/45">
+      <div className="mt-3 rounded-xl border border-[#27AE60]/10 bg-black/25 px-3 py-2 text-xs font-bold text-white/45">
         <span className={saveStatus === "cloud-error" ? "text-red-300" : "text-emerald-300"}>Sync: {statusText}</span>
         <span className="mx-2">•</span>{timeText}
         {cloudError && <p className="mt-1 text-red-300">{cloudError}</p>}
@@ -1577,7 +1593,7 @@ function MiniStat({ label, value, className }) {
 }
 
 function Stat({ label, value, gold, pink }) {
-  return <div className={`${gold ? "bg-[#22c55e] text-black" : pink ? "bg-gradient-to-br from-[#ff4f87] to-[#d71920] text-white" : "bg-black text-white"} rounded-2xl p-3 shadow-lg sm:p-4`}><p className="text-sm font-black sm:text-base">{label}</p><p className="text-3xl font-black tracking-[-0.05em] sm:text-4xl">{value}</p></div>;
+  return <div className={`${gold ? "bg-[#27AE60] text-black" : pink ? "bg-gradient-to-br from-[#ff4f87] to-[#d71920] text-white" : "bg-black text-white"} rounded-2xl p-3 shadow-lg sm:p-4`}><p className="text-sm font-black sm:text-base">{label}</p><p className="text-3xl font-black tracking-[-0.05em] sm:text-4xl">{value}</p></div>;
 }
 
 function Admin({ admin, pin, setPin, unlock, exportData, resetData, compact, localCandidate, publishLocalBackupToCloud }) {
@@ -1586,7 +1602,7 @@ function Admin({ admin, pin, setPin, unlock, exportData, resetData, compact, loc
   if (!admin && !open) {
     return (
       <div className="text-center">
-        <button onClick={() => setOpen(true)} className="rounded-full border border-[#22c55e]/30 bg-black/45 px-4 py-2 text-xs font-black uppercase tracking-widest text-[#22c55e]/70 hover:text-[#22c55e]">
+        <button onClick={() => setOpen(true)} className="rounded-full border border-[#27AE60]/30 bg-black/45 px-4 py-2 text-xs font-black uppercase tracking-widest text-[#27AE60]/70 hover:text-[#27AE60]">
           Admin
         </button>
       </div>
@@ -1596,22 +1612,22 @@ function Admin({ admin, pin, setPin, unlock, exportData, resetData, compact, loc
   return (
     <Panel>
       <div className="mb-3 flex items-center justify-between">
-        <h2 className="flex items-center text-lg font-black"><Crown className="mr-2 h-5 w-5 text-[#22c55e]" /> Admin</h2>
-        <span className={`rounded-full px-3 py-1 text-xs font-black ${admin ? "bg-[#22c55e] text-black" : "bg-black/40 text-white/60"}`}>{admin ? "Unlocked" : "Locked"}</span>
+        <h2 className="flex items-center text-lg font-black"><Crown className="mr-2 h-5 w-5 text-[#27AE60]" /> Admin</h2>
+        <span className={`rounded-full px-3 py-1 text-xs font-black ${admin ? "bg-[#27AE60] text-black" : "bg-black/40 text-white/60"}`}>{admin ? "Unlocked" : "Locked"}</span>
       </div>
       {!admin ? (
         <div className="space-y-2">
-          <input value={pin} onChange={(e) => setPin(e.target.value)} onKeyDown={(e) => e.key === "Enter" && unlock()} placeholder="PIN" className="w-full rounded-xl border border-[#22c55e]/15 bg-black/30 px-4 py-3 text-base font-black text-white outline-none focus:border-[#22c55e]" />
+          <input value={pin} onChange={(e) => setPin(e.target.value)} onKeyDown={(e) => e.key === "Enter" && unlock()} placeholder="PIN" className="w-full rounded-xl border border-[#27AE60]/15 bg-black/30 px-4 py-3 text-base font-black text-white outline-none focus:border-[#27AE60]" />
           <div className="grid grid-cols-2 gap-2">
-            <button onClick={unlock} className="rounded-xl bg-[#22c55e] px-4 py-3 text-sm font-black text-black">Unlock</button>
+            <button onClick={unlock} className="rounded-xl bg-[#27AE60] px-4 py-3 text-sm font-black text-black">Unlock</button>
             <button onClick={() => setOpen(false)} className="rounded-xl bg-white/10 px-4 py-3 text-sm font-black text-white/70">Hide</button>
           </div>
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-2">
-          <button onClick={exportData} className="flex items-center justify-center rounded-xl bg-black px-3 py-3 text-sm font-black text-[#22c55e]"><Download className="mr-1.5 h-4 w-4" /> Export</button>
+          <button onClick={exportData} className="flex items-center justify-center rounded-xl bg-black px-3 py-3 text-sm font-black text-[#27AE60]"><Download className="mr-1.5 h-4 w-4" /> Export</button>
           <button onClick={resetData} className="flex items-center justify-center rounded-xl bg-red-700 px-3 py-3 text-sm font-black text-white"><RotateCcw className="mr-1.5 h-4 w-4" /> Reset</button>
-          {localCandidate?.areas?.length ? <button onClick={publishLocalBackupToCloud} className="col-span-2 rounded-xl bg-[#22c55e] px-3 py-3 text-sm font-black text-black">Publish local backup</button> : null}
+          {localCandidate?.areas?.length ? <button onClick={publishLocalBackupToCloud} className="col-span-2 rounded-xl bg-[#27AE60] px-3 py-3 text-sm font-black text-black">Publish local backup</button> : null}
         </div>
       )}
     </Panel>
@@ -1628,15 +1644,15 @@ function ViewerNav({ areas, activeArea, activeShot, selectedRep, setSelectedRep,
         <div className="grid gap-3 lg:grid-cols-[1fr_1fr_auto]">
           <div>
             <div className="mb-2 flex items-center justify-between gap-2">
-              <p className="text-xs font-black uppercase tracking-widest text-[#22c55e]/70">Area</p>
+              <p className="text-xs font-black uppercase tracking-widest text-[#27AE60]/70">Area</p>
               <div className="flex gap-1.5">
-                <button onClick={() => stepArea(-1)} className="rounded-lg bg-black px-3 py-1.5 text-xs font-black text-[#22c55e]">‹</button>
-                <button onClick={() => stepArea(1)} className="rounded-lg bg-black px-3 py-1.5 text-xs font-black text-[#22c55e]">›</button>
+                <button onClick={() => stepArea(-1)} className="rounded-lg bg-black px-3 py-1.5 text-xs font-black text-[#27AE60]">‹</button>
+                <button onClick={() => stepArea(1)} className="rounded-lg bg-black px-3 py-1.5 text-xs font-black text-[#27AE60]">›</button>
               </div>
             </div>
             <div className="flex gap-2 overflow-x-auto pb-1">
               {(areas || []).map((a) => (
-                <button key={a.id} onClick={() => switchArea(a.id)} className={`shrink-0 rounded-xl px-3 py-2 text-sm font-black ${activeArea?.id === a.id ? "bg-[#22c55e] text-black" : "bg-white/[0.08] text-white/75"}`}>
+                <button key={a.id} onClick={() => switchArea(a.id)} className={`shrink-0 rounded-xl px-3 py-2 text-sm font-black ${activeArea?.id === a.id ? "bg-[#27AE60] text-black" : "bg-white/[0.08] text-white/75"}`}>
                   {a.name}
                 </button>
               ))}
@@ -1645,15 +1661,15 @@ function ViewerNav({ areas, activeArea, activeShot, selectedRep, setSelectedRep,
 
           <div>
             <div className="mb-2 flex items-center justify-between gap-2">
-              <p className="text-xs font-black uppercase tracking-widest text-[#22c55e]/70">Screenshots</p>
+              <p className="text-xs font-black uppercase tracking-widest text-[#27AE60]/70">Screenshots</p>
               <div className="flex gap-1.5">
-                <button onClick={() => stepShot(-1)} className="rounded-lg bg-black px-3 py-1.5 text-xs font-black text-[#22c55e]">‹</button>
-                <button onClick={() => stepShot(1)} className="rounded-lg bg-black px-3 py-1.5 text-xs font-black text-[#22c55e]">›</button>
+                <button onClick={() => stepShot(-1)} className="rounded-lg bg-black px-3 py-1.5 text-xs font-black text-[#27AE60]">‹</button>
+                <button onClick={() => stepShot(1)} className="rounded-lg bg-black px-3 py-1.5 text-xs font-black text-[#27AE60]">›</button>
               </div>
             </div>
             <div className="flex gap-2 overflow-x-auto pb-1">
               {shots.map((ss, i) => (
-                <button key={ss.id} onClick={() => switchShot(ss.id)} className={`shrink-0 rounded-xl px-3 py-2 text-sm font-black ${activeShot?.id === ss.id ? "bg-[#38bdf8] text-white" : "bg-white/[0.08] text-white/75"}`}>
+                <button key={ss.id} onClick={() => switchShot(ss.id)} className={`shrink-0 rounded-xl px-3 py-2 text-sm font-black ${activeShot?.id === ss.id ? "bg-[#00AEEF] text-white" : "bg-white/[0.08] text-white/75"}`}>
                   SS {i + 1}
                 </button>
               ))}
@@ -1661,13 +1677,13 @@ function ViewerNav({ areas, activeArea, activeShot, selectedRep, setSelectedRep,
           </div>
 
           <div className="min-w-[220px]">
-            <p className="mb-2 text-xs font-black uppercase tracking-widest text-[#22c55e]/70">See Leads</p>
+            <p className="mb-2 text-xs font-black uppercase tracking-widest text-[#27AE60]/70">See Leads</p>
             <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-5 lg:grid-cols-3">
               {["All", ...REPS].map((r) => {
                 const active = selectedRep === r;
                 const stat = teamStats.find((x) => x.rep === r);
                 return (
-                  <button key={r} onClick={() => setSelectedRep(r)} className={`rounded-xl px-2 py-2 text-xs font-black ring-1 ${active ? "bg-[#22c55e] text-black ring-[#22c55e]" : "bg-black/40 text-white/70 ring-white/10"}`}>
+                  <button key={r} onClick={() => setSelectedRep(r)} className={`rounded-xl px-2 py-2 text-xs font-black ring-1 ${active ? "bg-[#27AE60] text-black ring-[#27AE60]" : "bg-black/40 text-white/70 ring-white/10"}`}>
                     {r === "All" ? "All" : <><span className="mr-1 inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: repColor(r) }} />{r}</>}
                     {stat && r !== "All" && <span className="ml-1 text-[10px] opacity-70">{stat.leads}</span>}
                   </button>
@@ -1691,20 +1707,20 @@ function Areas({ areas, activeArea, activeShot, switchArea, switchShot, newAreaN
 
   return (
     <Panel>
-      <h2 className="mb-3 flex items-center text-xl font-black"><Map className="mr-2 h-5 w-5 text-[#22c55e]" /> Areas</h2>
+      <h2 className="mb-3 flex items-center text-xl font-black"><Map className="mr-2 h-5 w-5 text-[#27AE60]" /> Areas</h2>
 
-      <form onSubmit={submitArea} className="mb-4 rounded-2xl border border-[#22c55e]/20 bg-black/25 p-3">
-        <p className="mb-2 text-xs font-black uppercase tracking-widest text-[#22c55e]/70">Create Area</p>
+      <form onSubmit={submitArea} className="mb-4 rounded-2xl border border-[#27AE60]/20 bg-black/25 p-3">
+        <p className="mb-2 text-xs font-black uppercase tracking-widest text-[#27AE60]/70">Create Area</p>
         <input
           value={newAreaName}
           onChange={(e) => setNewAreaName(e.target.value)}
           placeholder="New area name"
           autoComplete="off"
-          className="mb-2 w-full rounded-xl border-2 border-[#22c55e]/30 bg-black/50 px-4 py-4 text-base font-black text-white outline-none placeholder:text-white/35 focus:border-[#22c55e]"
+          className="mb-2 w-full rounded-xl border-2 border-[#27AE60]/30 bg-black/50 px-4 py-4 text-base font-black text-white outline-none placeholder:text-white/35 focus:border-[#27AE60]"
         />
         <button
           type="submit"
-          className="flex w-full items-center justify-center rounded-xl bg-gradient-to-r from-[#22c55e] to-[#d4af37] px-4 py-4 text-base font-black text-black shadow-lg shadow-[#22c55e]/20 active:scale-[.99]"
+          className="flex w-full items-center justify-center rounded-xl bg-gradient-to-r from-[#27AE60] to-[#d4af37] px-4 py-4 text-base font-black text-black shadow-lg shadow-[#27AE60]/20 active:scale-[.99]"
         >
           <FolderPlus className="mr-2 h-5 w-5" /> {admin ? "Create Area" : "Unlock Admin to Create"}
         </button>
@@ -1712,7 +1728,7 @@ function Areas({ areas, activeArea, activeShot, switchArea, switchShot, newAreaN
 
       <div className="space-y-2">
         {areas.map((a) => (
-          <div key={a.id} className={`rounded-2xl border p-3 ${activeArea?.id === a.id ? "border-[#22c55e] bg-[#173321]" : "border-[#22c55e]/15 bg-[#172033]"}`}>
+          <div key={a.id} className={`rounded-2xl border p-3 ${activeArea?.id === a.id ? "border-[#27AE60] bg-[#173321]" : "border-[#27AE60]/15 bg-[#172033]"}`}>
             <div className="flex justify-between gap-2">
               <button type="button" onClick={() => switchArea(a.id)} className="min-w-0 flex-1 text-left text-base font-black">
                 <span className="block truncate">{a.name}</span>
@@ -1729,7 +1745,7 @@ function Areas({ areas, activeArea, activeShot, switchArea, switchShot, newAreaN
           <p className="text-xs font-black uppercase tracking-widest text-white/35">Screenshots</p>
           <div className="flex gap-2 overflow-x-auto pb-1">
             {activeArea.screenshots.map((s, i) => (
-              <button key={s.id} type="button" onClick={() => switchShot(s.id)} className={`shrink-0 rounded-xl px-3 py-2 text-sm font-black ${activeShot?.id === s.id ? "bg-[#38bdf8] text-white" : "bg-white/[0.08] text-white/75"}`}>SS {i + 1}</button>
+              <button key={s.id} type="button" onClick={() => switchShot(s.id)} className={`shrink-0 rounded-xl px-3 py-2 text-sm font-black ${activeShot?.id === s.id ? "bg-[#00AEEF] text-white" : "bg-white/[0.08] text-white/75"}`}>SS {i + 1}</button>
             ))}
           </div>
         </div>
@@ -1743,7 +1759,7 @@ function IpadFileInput({ children, multiple = true, capture = undefined, onFiles
   const inputId = useMemo(() => `file-${uid()}`, []);
 
   return (
-    <div className={`w-full rounded-2xl border-2 border-[#22c55e]/30 bg-black/55 p-4 shadow-lg ${disabled ? "opacity-50" : ""}`}>
+    <div className={`w-full rounded-2xl border-2 border-[#27AE60]/30 bg-black/55 p-4 shadow-lg ${disabled ? "opacity-50" : ""}`}>
       <label htmlFor={inputId} className={`mb-3 flex w-full cursor-pointer items-center justify-center rounded-xl px-4 py-4 text-base font-black shadow-lg ${className}`}>
         {children}
       </label>
@@ -1758,9 +1774,9 @@ function IpadFileInput({ children, multiple = true, capture = undefined, onFiles
           onFiles(e.target.files);
           e.target.value = "";
         }}
-        className="block w-full cursor-pointer rounded-xl border-2 border-white/30 bg-white px-3 py-4 text-sm font-black text-black file:mr-3 file:rounded-lg file:border-0 file:bg-black file:px-4 file:py-3 file:text-sm file:font-black file:text-[#22c55e]"
+        className="block w-full cursor-pointer rounded-xl border-2 border-white/30 bg-white px-3 py-4 text-sm font-black text-black file:mr-3 file:rounded-lg file:border-0 file:bg-black file:px-4 file:py-3 file:text-sm file:font-black file:text-[#27AE60]"
       />
-      <p className="mt-2 text-center text-xs font-black text-[#22c55e]/80">Old iPad fallback: tap the white Choose File box above.</p>
+      <p className="mt-2 text-center text-xs font-black text-[#27AE60]/80">Old iPad fallback: tap the white Choose File box above.</p>
     </div>
   );
 }
@@ -1768,10 +1784,10 @@ function IpadFileInput({ children, multiple = true, capture = undefined, onFiles
 function NativeUploadStack({ upload, disabled = false }) {
   return (
     <div className="mx-auto grid w-full max-w-md gap-3 rounded-3xl border-2 border-red-500/35 bg-red-950/20 p-4 shadow-2xl shadow-red-950/30">
-      <div className="rounded-2xl bg-black/60 p-3 text-center text-xs font-black uppercase tracking-widest text-[#38bdf8] ring-1 ring-red-500/25">
+      <div className="rounded-2xl bg-black/60 p-3 text-center text-xs font-black uppercase tracking-widest text-[#00AEEF] ring-1 ring-red-500/25">
         IPAD FIX v4 LIVE
       </div>
-      <IpadFileInput disabled={disabled} onFiles={upload} className="bg-[#22c55e] text-black">
+      <IpadFileInput disabled={disabled} onFiles={upload} className="bg-[#27AE60] text-black">
         <ImageIcon className="mr-2 h-5 w-5" /> Choose Screenshot / Camera Roll
       </IpadFileInput>
       <IpadFileInput disabled={disabled} multiple={false} capture="environment" onFiles={upload} className="bg-gradient-to-r from-red-700 to-red-500 text-white">
@@ -1795,19 +1811,19 @@ function UploadBox({ upload, admin }) {
   );
 }
 
-function AutoBox({ assignments, setAssignments, totals, autoThis, autoArea, admin }) { const total = assignments.reduce((s, a) => s + Number(a.percent || 0), 0); const update = (i, field, value) => setAssignments(assignments.map((a, idx) => idx === i ? { ...a, [field]: value } : a)); return <Panel><h2 className="mb-4 flex items-center text-2xl font-black"><Percent className="mr-2 text-[#22c55e]" /> Auto Split</h2><p className="mb-4 rounded-2xl bg-[#22c55e] p-4 text-lg font-black">{totals.leads} leads • {total}% assigned</p><div className="space-y-4">{assignments.map((a, i) => <div key={i} className="rounded-3xl bg-white/[0.08] p-4"><div className="mb-3 grid grid-cols-[1fr_auto_auto] gap-2"><select value={a.rep} onChange={(e) => update(i, "rep", e.target.value)} className="rounded-2xl px-4 py-3 text-lg font-black">{REPS.map((r) => <option key={r}>{r}</option>)}</select><span className="rounded-2xl bg-[#172033] px-4 py-3 text-lg font-black">{a.percent}%</span><button onClick={() => setAssignments(assignments.filter((_, idx) => idx !== i))} className="rounded-2xl bg-red-950/70 px-4 text-red-300"><Trash2 /></button></div><input type="range" min="0" max="100" step="5" value={a.percent} onChange={(e) => update(i, "percent", Number(e.target.value))} className="w-full accent-[#22c55e]" /></div>)}</div><div className="mt-4 grid grid-cols-3 gap-2"><button onClick={() => setAssignments([...assignments, { rep: REPS[0], percent: 0 }])} className="rounded-2xl bg-white/10 py-4 text-lg font-black">Add</button><button disabled={!admin} onClick={autoThis} className="rounded-2xl bg-black py-4 text-lg font-black text-[#22c55e] disabled:opacity-40">This SS</button><button disabled={!admin} onClick={autoArea} className="rounded-2xl bg-[#22c55e] py-4 text-lg font-black disabled:opacity-40">Whole Area</button></div></Panel>; }
+function AutoBox({ assignments, setAssignments, totals, autoThis, autoArea, admin }) { const total = assignments.reduce((s, a) => s + Number(a.percent || 0), 0); const update = (i, field, value) => setAssignments(assignments.map((a, idx) => idx === i ? { ...a, [field]: value } : a)); return <Panel><h2 className="mb-4 flex items-center text-2xl font-black"><Percent className="mr-2 text-[#27AE60]" /> Auto Split</h2><p className="mb-4 rounded-2xl bg-[#27AE60] p-4 text-lg font-black">{totals.leads} leads • {total}% assigned</p><div className="space-y-4">{assignments.map((a, i) => <div key={i} className="rounded-3xl bg-white/[0.08] p-4"><div className="mb-3 grid grid-cols-[1fr_auto_auto] gap-2"><select value={a.rep} onChange={(e) => update(i, "rep", e.target.value)} className="rounded-2xl px-4 py-3 text-lg font-black">{REPS.map((r) => <option key={r}>{r}</option>)}</select><span className="rounded-2xl bg-[#172033] px-4 py-3 text-lg font-black">{a.percent}%</span><button onClick={() => setAssignments(assignments.filter((_, idx) => idx !== i))} className="rounded-2xl bg-red-950/70 px-4 text-red-300"><Trash2 /></button></div><input type="range" min="0" max="100" step="5" value={a.percent} onChange={(e) => update(i, "percent", Number(e.target.value))} className="w-full accent-[#27AE60]" /></div>)}</div><div className="mt-4 grid grid-cols-3 gap-2"><button onClick={() => setAssignments([...assignments, { rep: REPS[0], percent: 0 }])} className="rounded-2xl bg-white/10 py-4 text-lg font-black">Add</button><button disabled={!admin} onClick={autoThis} className="rounded-2xl bg-black py-4 text-lg font-black text-[#27AE60] disabled:opacity-40">This SS</button><button disabled={!admin} onClick={autoArea} className="rounded-2xl bg-[#27AE60] py-4 text-lg font-black disabled:opacity-40">Whole Area</button></div></Panel>; }
 function ManualBox({ manualRep, setManualRep, polygon, clear, saveManual, admin, editMode, setEditMode, selectedTurf, deleteSelected }) {
   return (
     <Panel>
-      <h2 className="mb-4 flex items-center text-xl font-black"><Scissors className="mr-2 text-[#22c55e]" /> Manual Cut</h2>
-      <select value={manualRep} onChange={(e) => setManualRep(e.target.value)} className="mb-3 w-full rounded-xl border-2 border-[#22c55e]/15 px-4 py-3 text-base font-black">{REPS.map((r) => <option key={r}>{r}</option>)}</select>
+      <h2 className="mb-4 flex items-center text-xl font-black"><Scissors className="mr-2 text-[#27AE60]" /> Manual Cut</h2>
+      <select value={manualRep} onChange={(e) => setManualRep(e.target.value)} className="mb-3 w-full rounded-xl border-2 border-[#27AE60]/15 px-4 py-3 text-base font-black">{REPS.map((r) => <option key={r}>{r}</option>)}</select>
       <p className="mb-3 rounded-xl bg-white/[0.08] p-3 text-sm font-bold">{editMode ? "Editor ON: tap a saved zone, drag the whole zone, or drag a corner." : "Tap the map to draw. No turf names, just the dude."}</p>
-      <button disabled={!admin} onClick={() => setEditMode(!editMode)} className={`mb-3 w-full rounded-xl py-3 text-base font-black disabled:opacity-40 ${editMode ? "bg-[#22c55e] text-black" : "bg-black text-[#22c55e]"}`}>Polygon Editor: {editMode ? "ON" : "OFF"}</button>
+      <button disabled={!admin} onClick={() => setEditMode(!editMode)} className={`mb-3 w-full rounded-xl py-3 text-base font-black disabled:opacity-40 ${editMode ? "bg-[#27AE60] text-black" : "bg-black text-[#27AE60]"}`}>Polygon Editor: {editMode ? "ON" : "OFF"}</button>
       {editMode && selectedTurf && (
         <button onClick={deleteSelected} className="mb-3 flex w-full items-center justify-center rounded-xl bg-gradient-to-r from-red-700 to-red-500 py-3 text-base font-black text-white"><Trash2 className="mr-2 h-4 w-4" /> Delete Selected Zone</button>
       )}
       <div className="grid grid-cols-2 gap-2">
-        <button disabled={!admin || polygon.length < 3 || editMode} onClick={saveManual} className="rounded-xl bg-black py-3 text-base font-black text-[#22c55e] disabled:opacity-40"><Save className="mr-2 inline h-4 w-4" />Save</button>
+        <button disabled={!admin || polygon.length < 3 || editMode} onClick={saveManual} className="rounded-xl bg-black py-3 text-base font-black text-[#27AE60] disabled:opacity-40"><Save className="mr-2 inline h-4 w-4" />Save</button>
         <button onClick={clear} className="rounded-xl bg-white/10 py-3 text-base font-black">Clear</button>
       </div>
       <p className="mt-2 text-sm font-bold text-white/50">{editMode ? selectedTurf ? `Selected: ${selectedTurf.rep} • ${selectedTurf.counts?.yellow || 0} leads` : "No zone selected." : `Points: ${polygon.length}`}</p>
@@ -1815,20 +1831,20 @@ function ManualBox({ manualRep, setManualRep, polygon, clear, saveManual, admin,
   );
 }
 
-function RepFilter({ selectedRep, setSelectedRep }) { return <Panel><h2 className="mb-4 flex items-center text-2xl font-black"><Filter className="mr-2" /> Map Filter</h2><div className="grid grid-cols-2 gap-2">{["All", ...REPS].map((r) => <button key={r} onClick={() => setSelectedRep(r)} className={`rounded-2xl px-4 py-3 text-lg font-black ${selectedRep === r ? "bg-black text-[#22c55e]" : "bg-white/[0.08]"}`}>{r}</button>)}</div></Panel>; }
-function Tuning({ options, setOptions, reCount }) { return <Panel><h2 className="mb-4 flex items-center text-2xl font-black"><Wand2 className="mr-2" /> Tuning</h2><Slider label="Sensitivity" value={options.sensitivity} min={0} max={10} step={1} onChange={(v) => setOptions({ ...options, sensitivity: Number(v) })} /><Slider label="Dot Size" value={options.expectedDotArea} min={60} max={420} step={10} onChange={(v) => setOptions({ ...options, expectedDotArea: Number(v) })} /><button onClick={reCount} className="mt-4 w-full rounded-2xl bg-black py-4 text-xl font-black text-[#22c55e]">Recount</button></Panel>; }
-function Slider({ label, value, min, max, step, onChange }) { return <label className="mb-4 block"><div className="mb-2 flex justify-between text-lg font-black"><span>{label}</span><span>{value}</span></div><input type="range" min={min} max={max} step={step} value={value} onChange={(e) => onChange(e.target.value)} className="w-full accent-[#22c55e]" /></label>; }
+function RepFilter({ selectedRep, setSelectedRep }) { return <Panel><h2 className="mb-4 flex items-center text-2xl font-black"><Filter className="mr-2" /> Map Filter</h2><div className="grid grid-cols-2 gap-2">{["All", ...REPS].map((r) => <button key={r} onClick={() => setSelectedRep(r)} className={`rounded-2xl px-4 py-3 text-lg font-black ${selectedRep === r ? "bg-black text-[#27AE60]" : "bg-white/[0.08]"}`}>{r}</button>)}</div></Panel>; }
+function Tuning({ options, setOptions, reCount }) { return <Panel><h2 className="mb-4 flex items-center text-2xl font-black"><Wand2 className="mr-2" /> Tuning</h2><Slider label="Sensitivity" value={options.sensitivity} min={0} max={10} step={1} onChange={(v) => setOptions({ ...options, sensitivity: Number(v) })} /><Slider label="Dot Size" value={options.expectedDotArea} min={60} max={420} step={10} onChange={(v) => setOptions({ ...options, expectedDotArea: Number(v) })} /><button onClick={reCount} className="mt-4 w-full rounded-2xl bg-black py-4 text-xl font-black text-[#27AE60]">Recount</button></Panel>; }
+function Slider({ label, value, min, max, step, onChange }) { return <label className="mb-4 block"><div className="mb-2 flex justify-between text-lg font-black"><span>{label}</span><span>{value}</span></div><input type="range" min={min} max={max} step={step} value={value} onChange={(e) => onChange(e.target.value)} className="w-full accent-[#27AE60]" /></label>; }
 function MapPanel({ fileRef, upload, activeShot, canvasRef, overlayRef, canvasClick, mode, showDots, setShowDots, showTurf, setShowTurf, showSold, setShowSold, uploadEnabled, startDrag, moveDrag, stopDrag, editMode, startSwipe, endSwipe, handleTouchStart, handleTouchMove, handleTouchEnd }) {
   return (
-    <div className="rounded-[1.5rem] border border-[#22c55e]/15 bg-[#111827]/90 p-3 text-[#f8fafc] shadow-xl shadow-black/30 backdrop-blur-xl sm:p-4">
+    <div className="rounded-[1.5rem] border border-[#27AE60]/15 bg-[#080a3d]/90 p-3 text-[#f8fafc] shadow-xl shadow-black/30 backdrop-blur-xl sm:p-4">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-xl font-black">{activeShot?.name || "No screenshot selected"}</p>
           <p className="text-sm font-bold text-white/50">{mode === "erase" ? "Click a false dot to delete it." : mode === "manual" && editMode ? "Editor is on. Tap zones, drag zones, or drag corners." : mode === "manual" ? "Click to draw a polygon." : "Saved turf stays visible."}</p>
         </div>
         <div className="flex gap-2">
-          <button onClick={() => setShowDots(!showDots)} className="rounded-xl bg-black px-3 py-2 text-sm font-black text-[#22c55e]">{showDots ? <EyeOff className="mr-1 inline h-4 w-4" /> : <Eye className="mr-1 inline h-4 w-4" />}Dots</button>
-          <button onClick={() => setShowTurf(!showTurf)} className="rounded-xl bg-black px-3 py-2 text-sm font-black text-[#22c55e]">{showTurf ? <EyeOff className="mr-1 inline h-4 w-4" /> : <Eye className="mr-1 inline h-4 w-4" />}Turf</button>
+          <button onClick={() => setShowDots(!showDots)} className="rounded-xl bg-black px-3 py-2 text-sm font-black text-[#27AE60]">{showDots ? <EyeOff className="mr-1 inline h-4 w-4" /> : <Eye className="mr-1 inline h-4 w-4" />}Dots</button>
+          <button onClick={() => setShowTurf(!showTurf)} className="rounded-xl bg-black px-3 py-2 text-sm font-black text-[#27AE60]">{showTurf ? <EyeOff className="mr-1 inline h-4 w-4" /> : <Eye className="mr-1 inline h-4 w-4" />}Turf</button>
           <button onClick={() => setShowSold(!showSold)} className={`rounded-xl px-3 py-2 text-xs font-black ${showSold ? "bg-[#7f1d1d] text-white" : "bg-black/60 text-white/35"}`}>Sold {showSold ? "ON" : "OFF"}</button>
           <span className="rounded-xl bg-red-950/50 px-3 py-2 text-xs font-black text-red-200 ring-1 ring-red-500/25">IPAD v4</span>
         </div>
@@ -1850,7 +1866,7 @@ function MapPanel({ fileRef, upload, activeShot, canvasRef, overlayRef, canvasCl
         onTouchCancel={stopDrag}
         onDrop={(e) => { e.preventDefault(); if (uploadEnabled) upload(e.dataTransfer.files); }}
         onDragOver={(e) => e.preventDefault()}
-        className={`relative grid min-h-[560px] touch-none place-items-center overflow-auto rounded-[1.25rem] border-2 border-dashed border-[#22c55e]/20 bg-black/35 sm:min-h-[650px] ${mode === "manual" || mode === "erase" ? "cursor-crosshair" : ""}`}
+        className={`relative grid min-h-[560px] touch-none place-items-center overflow-auto rounded-[1.25rem] border-2 border-dashed border-[#27AE60]/20 bg-black/35 sm:min-h-[650px] ${mode === "manual" || mode === "erase" ? "cursor-crosshair" : ""}`}
         style={{ touchAction: "none" }}
       >
         {!activeShot && (
@@ -1886,17 +1902,17 @@ function TurfLegend({ turfs }) {
     <Panel>
       <div className="mb-4 flex items-center justify-between gap-3">
         <h2 className="text-3xl font-black">Turf Legend</h2>
-        <span className="rounded-full bg-black px-4 py-2 text-sm font-black text-[#22c55e]">{turfs.length} zones</span>
+        <span className="rounded-full bg-black px-4 py-2 text-sm font-black text-[#27AE60]">{turfs.length} zones</span>
       </div>
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         {rows.map((row) => (
-          <div key={row.rep} className="rounded-3xl border border-[#22c55e]/15 bg-[#172033] p-4 shadow-sm">
+          <div key={row.rep} className="rounded-3xl border border-[#27AE60]/15 bg-[#172033] p-4 shadow-sm">
             <div className="mb-3 flex items-center gap-3">
               <span className="h-5 w-5 rounded-full border-2 border-black" style={{ backgroundColor: repColor(row.rep) }} />
               <h3 className="text-2xl font-black">{row.rep}</h3>
             </div>
             <div className="grid grid-cols-2 gap-2">
-              <div className="rounded-2xl bg-[#22c55e] p-3 text-center font-black text-black">
+              <div className="rounded-2xl bg-[#27AE60] p-3 text-center font-black text-black">
                 <p className="text-xs uppercase opacity-70">Leads</p>
                 <p className="text-2xl">{row.leads}</p>
               </div>
@@ -1912,7 +1928,7 @@ function TurfLegend({ turfs }) {
   );
 }
 
-function AreaDeck({ areas, switchArea, setMode, admin }) { return <Panel><h2 className="mb-5 flex items-center text-4xl font-black"><Layers className="mr-3 h-9 w-9" /> Areas Command Deck</h2>{areas.length === 0 ? <div className="rounded-3xl bg-white/[0.08] p-10 text-center"><h3 className="text-4xl font-black">No areas yet</h3><p className="mt-2 text-xl font-bold text-white/50">Unlock Sam Admin, create an area, upload screenshots.</p></div> : <div className="grid gap-4 lg:grid-cols-2">{areas.map((a) => { const leads = (a.screenshots || []).reduce((s, shot) => s + (shot.detections?.lead?.length || 0), 0); return <button key={a.id} onClick={() => { switchArea(a.id); setMode("count"); }} className="rounded-[2rem] bg-black p-6 text-left text-white shadow-xl transition hover:-translate-y-1"><h3 className="text-3xl font-black">{a.name}</h3><p className="mt-1 text-lg font-bold text-white/60">{a.screenshots?.length || 0} screenshots • {a.turfs?.length || 0} zones</p><p className="mt-5 text-7xl font-black text-[#22c55e]">{leads}</p><p className="text-sm font-black uppercase tracking-widest text-white/50">leads</p></button>; })}</div>}</Panel>; }
+function AreaDeck({ areas, switchArea, setMode, admin }) { return <Panel><h2 className="mb-5 flex items-center text-4xl font-black"><Layers className="mr-3 h-9 w-9" /> Areas Command Deck</h2>{areas.length === 0 ? <div className="rounded-3xl bg-white/[0.08] p-10 text-center"><h3 className="text-4xl font-black">No areas yet</h3><p className="mt-2 text-xl font-bold text-white/50">Unlock Sam Admin, create an area, upload screenshots.</p></div> : <div className="grid gap-4 lg:grid-cols-2">{areas.map((a) => { const leads = (a.screenshots || []).reduce((s, shot) => s + (shot.detections?.lead?.length || 0), 0); return <button key={a.id} onClick={() => { switchArea(a.id); setMode("count"); }} className="rounded-[2rem] bg-black p-6 text-left text-white shadow-xl transition hover:-translate-y-1"><h3 className="text-3xl font-black">{a.name}</h3><p className="mt-1 text-lg font-bold text-white/60">{a.screenshots?.length || 0} screenshots • {a.turfs?.length || 0} zones</p><p className="mt-5 text-7xl font-black text-[#27AE60]">{leads}</p><p className="text-sm font-black uppercase tracking-widest text-white/50">leads</p></button>; })}</div>}</Panel>; }
 function TeamView({ teamStats, teamRep, setTeamRep, teamTurfs, admin, deleteTurf, setSelectedRep, setMode }) {
   const activeStats = teamStats.find((s) => s.rep === teamRep) || { leads: 0, sold: 0, zones: 0 };
 
@@ -1925,7 +1941,7 @@ function TeamView({ teamStats, teamRep, setTeamRep, teamTurfs, admin, deleteTurf
             <p className="text-sm font-bold text-white/45">Pick a rep, open their turf, or jump to the separate quote builder.</p>
           </div>
           <div className="grid w-full grid-cols-2 gap-2 sm:w-auto">
-            <button type="button" onClick={() => { setSelectedRep(teamRep); setMode("manual"); }} className="rounded-xl bg-[#22c55e] px-4 py-3 text-sm font-black text-black">Open {teamRep}'s Map</button>
+            <button type="button" onClick={() => { setSelectedRep(teamRep); setMode("manual"); }} className="rounded-xl bg-[#27AE60] px-4 py-3 text-sm font-black text-black">Open {teamRep}'s Map</button>
             <button type="button" onClick={() => { if (typeof window !== "undefined") window.location.href = "/sales"; }} className="rounded-xl bg-white px-4 py-3 text-sm font-black text-red-700">Open Quote Builder</button>
           </div>
         </div>
@@ -1933,12 +1949,12 @@ function TeamView({ teamStats, teamRep, setTeamRep, teamTurfs, admin, deleteTurf
           {REPS.map((r) => {
             const stat = teamStats.find((s) => s.rep === r) || { leads: 0, sold: 0, zones: 0 };
             return (
-              <button key={r} onClick={() => setTeamRep(r)} className={`rounded-2xl border p-3 text-left transition ${teamRep === r ? "border-[#22c55e] bg-black shadow-lg shadow-[#22c55e]/10" : "border-white/10 bg-white/[0.06]"}`}>
+              <button key={r} onClick={() => setTeamRep(r)} className={`rounded-2xl border p-3 text-left transition ${teamRep === r ? "border-[#27AE60] bg-black shadow-lg shadow-[#27AE60]/10" : "border-white/10 bg-white/[0.06]"}`}>
                 <div className="mb-2 flex items-center gap-2">
                   <span className="h-4 w-4 rounded-full ring-2 ring-black" style={{ backgroundColor: repColor(r) }} />
                   <span className="text-base font-black">{r}</span>
                 </div>
-                <p className="text-3xl font-black text-[#22c55e]">{stat.leads}</p>
+                <p className="text-3xl font-black text-[#27AE60]">{stat.leads}</p>
                 <p className="text-xs font-bold text-white/45">leads • {stat.zones} zones</p>
               </button>
             );
@@ -1953,7 +1969,7 @@ function TeamView({ teamStats, teamRep, setTeamRep, teamTurfs, admin, deleteTurf
             <p className="text-sm font-bold text-white/45">{activeStats.leads} leads • {activeStats.zones} zones</p>
           </div>
           <div className="flex gap-2">
-            <button type="button" onClick={() => { setSelectedRep(teamRep); setMode("manual"); }} className="rounded-xl bg-black px-4 py-2 text-sm font-black text-[#22c55e]">Map</button>
+            <button type="button" onClick={() => { setSelectedRep(teamRep); setMode("manual"); }} className="rounded-xl bg-black px-4 py-2 text-sm font-black text-[#27AE60]">Map</button>
             <button type="button" onClick={() => { if (typeof window !== "undefined") window.location.href = "/sales"; }} className="rounded-xl bg-white px-4 py-2 text-sm font-black text-red-700">Quote</button>
           </div>
         </div>
@@ -1971,7 +1987,7 @@ function TeamView({ teamStats, teamRep, setTeamRep, teamTurfs, admin, deleteTurf
                   {admin && <button onClick={() => deleteTurf(t.id)} className="text-red-300"><Trash2 /></button>}
                 </div>
                 <div className="grid grid-cols-1 gap-2">
-                  <MiniStat label="Leads" value={t.counts?.yellow || 0} className="bg-[#22c55e] text-black" />
+                  <MiniStat label="Leads" value={t.counts?.yellow || 0} className="bg-[#27AE60] text-black" />
                 </div>
               </div>
             ))}
