@@ -947,9 +947,7 @@ export default function GFFOSOps() {
     const canvas = canvasRef.current;
     if (!canvas || !activeShot) return;
     const nextDetections = detectAll(canvas, app.options);
-    const manualLeads = (activeShot.detections?.lead || []).filter((d) => d.confidence === "manual");
-    const manualPink = (activeShot.detections?.pink || []).filter((d) => d.confidence === "manual");
-    updateActiveArea((area) => ({ ...area, screenshots: area.screenshots.map((s) => s.id === activeShot.id ? { ...s, detections: { lead: [...(nextDetections.lead || []), ...manualLeads], pink: [...(nextDetections.pink || []), ...manualPink] } } : s) }));
+    updateActiveArea((area) => ({ ...area, screenshots: area.screenshots.map((s) => s.id === activeShot.id ? { ...s, detections: nextDetections } : s) }));
   };
 
   const addManualDot = (x, y) => {
@@ -1268,7 +1266,6 @@ export default function GFFOSOps() {
       <SharkBg />
       <section className="relative mx-auto max-w-[1540px] px-3 py-4 sm:px-6 lg:px-8">
         <Header mode={mode} setMode={setMode} admin={admin} />
-        <FloatingTools mode={mode} setMode={setMode} admin={admin} />
         <ViewerNav
           areas={app.areas}
           activeArea={activeArea}
