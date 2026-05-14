@@ -94,6 +94,62 @@ const DEFAULT_APP = {
   },
 };
 
+
+
+function normalizeAppState(value) {
+  const base = JSON.parse(JSON.stringify(DEFAULT_APP));
+  const incoming = value && typeof value === "object" ? value : {};
+  const app = { ...base, ...incoming };
+
+  app.areas = Array.isArray(incoming.areas) ? incoming.areas.map((area, areaIndex) => {
+    const safeArea = area && typeof area === "object" ? area : {};
+    const screenshots = Array.isArray(safeArea.screenshots) ? safeArea.screenshots.map((shot, shotIndex) => {
+      const safeShot = shot && typeof shot === "object" ? shot : {};
+      const detections = safeShot.detections && typeof safeShot.detections === "object" ? safeShot.detections : {};
+      return {
+        id: safeShot.id || uid(),
+        name: safeShot.name || `Screenshot ${shotIndex + 1}`,
+        dataUrl: safeShot.dataUrl || "",
+        width: Number(safeShot.width) || 1,
+        height: Number(safeShot.height) || 1,
+        detections: {
+          lead: Array.isArray(detections.lead) ? detections.lead : [],
+          pink: Array.isArray(detections.pink) ? detections.pink : [],
+        },
+        createdAt: safeShot.createdAt || new Date().toISOString(),
+      };
+    }) : [];
+
+    return {
+      id: safeArea.id || uid(),
+      name: safeArea.name || `Area ${areaIndex + 1}`,
+      screenshots,
+      turfs: Array.isArray(safeArea.turfs) ? safeArea.turfs.filter(Boolean).map((turf) => ({
+        ...turf,
+        id: turf.id || uid(),
+        points: Array.isArray(turf.points) ? turf.points : [],
+        counts: turf.counts && typeof turf.counts === "object" ? turf.counts : { yellow: 0, pink: 0 },
+      })) : [],
+      createdAt: safeArea.createdAt || new Date().toISOString(),
+    };
+  }) : [];
+
+  app.assignments = Array.isArray(incoming.assignments) && incoming.assignments.length ? incoming.assignments : base.assignments;
+  app.sales = { ...base.sales, ...(incoming.sales && typeof incoming.sales === "object" ? incoming.sales : {}) };
+  app.sales.plans = Array.isArray(app.sales.plans) && app.sales.plans.length ? app.sales.plans : base.sales.plans;
+  app.sales.addons = Array.isArray(app.sales.addons) ? app.sales.addons : base.sales.addons;
+  app.sales.fiberPoints = Array.isArray(app.sales.fiberPoints) ? app.sales.fiberPoints : base.sales.fiberPoints;
+  app.options = { ...base.options, ...(incoming.options && typeof incoming.options === "object" ? incoming.options : {}) };
+
+  const activeAreaExists = app.areas.some((a) => a.id === incoming.activeAreaId);
+  app.activeAreaId = activeAreaExists ? incoming.activeAreaId : app.areas[0]?.id || null;
+  const activeArea = app.areas.find((a) => a.id === app.activeAreaId);
+  const activeShotExists = activeArea?.screenshots?.some((s) => s.id === incoming.activeShotId);
+  app.activeShotId = activeShotExists ? incoming.activeShotId : activeArea?.screenshots?.[0]?.id || null;
+
+  return app;
+}
+
 const DOT_PRESETS = [
   { key: "lead", label: "Lead", color: "#f5c542", hueMin: 22, hueMax: 72, satMin: 28, valMin: 28, minArea: 16, maxArea: 1600 },
   { key: "pink", label: "Sold", color: "#ff4f87", hueMin: 310, hueMax: 360, satMin: 30, valMin: 30, minArea: 16, maxArea: 1600 },
@@ -554,7 +610,7 @@ export default function GFFOSOps() {
   const cloudVersionRef = useRef(0);
 
   const [loaded, setLoaded] = useState(false);
-  const [app, setApp] = useState(DEFAULT_APP);
+  const [app, setApp] = useState(() => normalizeAppState(DEFAULT_APP));
   const [mode, setMode] = useState("areas");
   const [admin, setAdmin] = useState(false);
   const [pin, setPin] = useState("");
@@ -580,7 +636,7 @@ export default function GFFOSOps() {
     if (!cloud || !Object.keys(cloud).length) return;
 
     setApp((current) => {
-      const next = { ...DEFAULT_APP, ...cloud };
+      const next = normalizeAppState(cloud);
 
       if (!preserveSelection) return {
         ...next,
@@ -613,7 +669,7 @@ export default function GFFOSOps() {
     // 2014 iPad failsafe: never let cloud/IndexedDB boot trap the app on the loading screen.
     const ipadBootFailsafe = setTimeout(() => {
       if (cancelled) return;
-      setApp((current) => ({ ...DEFAULT_APP, ...(current || {}) }));
+      setApp((current) => normalizeAppState(current || DEFAULT_APP));
       setSaveStatus("ipad-safe-mode");
       setCloudError("iPad safe mode: cloud/local boot took too long, so the app opened anyway.");
       setLoaded(true);
@@ -628,7 +684,7 @@ export default function GFFOSOps() {
 
         if (cancelled) return;
 
-        if (local && local.areas && local.areas.length) setLocalCandidate({ ...DEFAULT_APP, ...local });
+        if (local && Array.isArray(local.areas) && local.areas.length) setLocalCandidate(normalizeAppState(local));
 
         if (supabase && cloud && Object.keys(cloud).length) {
           applyCloudState(cloud, false);
@@ -636,18 +692,18 @@ export default function GFFOSOps() {
           setCloudError("");
           setLastCloudLoad(new Date());
         } else if (local && local.areas && local.areas.length) {
-          setApp({ ...DEFAULT_APP, ...local });
+          setApp(normalizeAppState(local));
           setSaveStatus(supabase ? "cloud-empty-local-backup" : "local-only");
           setCloudError(supabase ? "Cloud did not answer, so this device opened its local backup." : "Missing Supabase environment variables.");
         } else {
-          setApp(DEFAULT_APP);
+          setApp(normalizeAppState(DEFAULT_APP));
           setSaveStatus(supabase ? "cloud-empty" : "local-empty");
           setCloudError(supabase ? "Cloud did not return shared map data yet." : "Missing Supabase environment variables.");
         }
       } catch (err) {
         console.error("Boot failed:", err);
         if (!cancelled) {
-          setApp(DEFAULT_APP);
+          setApp(normalizeAppState(DEFAULT_APP));
           setSaveStatus("ipad-safe-mode");
           setCloudError((err && err.message) || "App boot failed, but the screen was unlocked.");
         }
@@ -991,7 +1047,7 @@ export default function GFFOSOps() {
 
   const resetData = async () => {
     await clearDb();
-    setApp(DEFAULT_APP);
+    setApp(normalizeAppState(DEFAULT_APP));
     setPolygon([]);
     setSelectedTurfId(null);
     setDragState(null);
