@@ -79,9 +79,9 @@ const DEFAULT_APP = {
   },
   options: {
     sensitivity: 5,
-    expectedDotArea: 220,
-    maxBlobMultiplier: 4,
-    splitOverlaps: false,
+    expectedDotArea: 170,
+    maxBlobMultiplier: 8,
+    splitOverlaps: true,
     cropLeft: 0,
     cropRight: 1,
     cropTop: 0,
@@ -869,7 +869,30 @@ export default function GFFOSOps() {
     const canvas = canvasRef.current;
     if (!canvas || !activeShot) return;
     const nextDetections = detectAll(canvas, app.options);
-    updateActiveArea((area) => ({ ...area, screenshots: area.screenshots.map((s) => s.id === activeShot.id ? { ...s, detections: nextDetections } : s) }));
+    const manualLeads = (activeShot.detections?.lead || []).filter((d) => d.confidence === "manual");
+    const manualPink = (activeShot.detections?.pink || []).filter((d) => d.confidence === "manual");
+    updateActiveArea((area) => ({ ...area, screenshots: area.screenshots.map((s) => s.id === activeShot.id ? { ...s, detections: { lead: [...(nextDetections.lead || []), ...manualLeads], pink: [...(nextDetections.pink || []), ...manualPink] } } : s) }));
+  };
+
+  const addManualDot = (x, y) => {
+    if (!admin || !activeShot) return;
+    const manualDot = {
+      id: uid(),
+      type: "lead",
+      x,
+      y,
+      area: app.options.expectedDotArea || 170,
+      radius: Math.sqrt((app.options.expectedDotArea || 170) / Math.PI),
+      confidence: "manual",
+    };
+    updateActiveArea((area) => ({
+      ...area,
+      screenshots: area.screenshots.map((s) =>
+        s.id === activeShot.id
+          ? { ...s, detections: { ...(s.detections || {}), lead: [...(s.detections?.lead || []), manualDot], pink: s.detections?.pink || [] } }
+          : s
+      ),
+    }));
   };
 
   const deleteDot = (x, y) => {
@@ -1034,6 +1057,7 @@ export default function GFFOSOps() {
     }
 
     if (mode === "erase") return deleteDot(x, y);
+    if (mode === "adddot") return addManualDot(x, y);
     if (mode !== "manual" || !admin) return;
     setPolygon((old) => [...old, { x, y }]);
   };
@@ -1166,6 +1190,7 @@ export default function GFFOSOps() {
       <SharkBg />
       <section className="relative mx-auto max-w-[1540px] px-3 py-4 sm:px-6 lg:px-8">
         <Header mode={mode} setMode={setMode} admin={admin} />
+        <FloatingTools mode={mode} setMode={setMode} admin={admin} />
         <ViewerNav
           areas={app.areas}
           activeArea={activeArea}
@@ -1509,48 +1534,56 @@ function SharkBg() {
 }
 
 function Header({ mode, setMode, admin }) {
-  const [toolsOpen, setToolsOpen] = useState(false);
-  const tabs = admin
-    ? [["areas", <Layers />, "Areas"], ["upload", <Upload />, "Upload"], ["count", <Target />, "Count"], ["erase", <Eraser />, "Erase"], ["auto", <Split />, "Auto"], ["manual", <Scissors />, "Map"], ["team", <Users />, "Team"]]
-    : [["manual", <Map />, "Map"], ["team", <Users />, "Team"]];
-  const activeTab = tabs.find(([key]) => key === mode) || tabs[0];
   const openSalesPage = () => {
     if (typeof window !== "undefined") window.location.href = "/sales";
   };
 
   return (
-    <header className="mb-3 rounded-[1.25rem] border border-[#D7FF00]/30 bg-[#05052d]/95 p-3 text-center shadow-xl shadow-black/30 backdrop-blur-xl sm:p-4">
-      <div className="mx-auto flex max-w-6xl flex-col items-center gap-3">
+    <header className="mb-3 rounded-[1.25rem] border border-[#D7FF00]/25 bg-[#07073a]/95 p-4 shadow-xl shadow-black/30 backdrop-blur-xl">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <div className="mx-auto mb-2 inline-flex items-center gap-2 rounded-full bg-[#D7FF00] px-3 py-1 text-[10px] font-black uppercase tracking-widest text-[#05052d] ring-1 ring-[#D7FF00]/60 sm:text-xs">
+          <div className="inline-flex items-center gap-2 rounded-full bg-[#D7FF00] px-3 py-1 text-[10px] font-black uppercase tracking-widest text-[#05052d]">
             <Flame className="h-3.5 w-3.5" /> GFF OS • KINETIC FIELD MODE
           </div>
-          <h1 className="text-3xl font-black tracking-[-0.07em] sm:text-5xl lg:text-6xl">
+          <h1 className="mt-1 text-3xl font-black tracking-[-0.07em] sm:text-5xl">
             <span className="bg-gradient-to-r from-white via-[#D7FF00] to-[#27AE60] bg-clip-text text-transparent">GFF OS</span>
           </h1>
         </div>
-        <div className="grid w-full max-w-3xl grid-cols-2 gap-2 rounded-2xl bg-black/50 p-1.5 sm:grid-cols-[1fr_1fr_auto]">
-          <button type="button" onClick={() => setToolsOpen(!toolsOpen)} className="flex min-h-10 items-center justify-center rounded-xl bg-[#D7FF00] px-3 text-xs font-black text-[#05052d] transition hover:brightness-95">
-            {React.cloneElement(activeTab[1], { className: "mr-1 h-3.5 w-3.5" })} {toolsOpen ? "Close Tools" : `Tool: ${activeTab[2]}`}
+        <div className="flex gap-2">
+          <button type="button" onClick={() => setMode("manual")} className="rounded-2xl bg-[#27AE60] px-4 py-3 text-xs font-black text-white shadow-lg shadow-[#27AE60]/20">
+            <Map className="mr-1 inline h-4 w-4" /> Turf
           </button>
-          <button type="button" onClick={openSalesPage} className="flex min-h-10 items-center justify-center rounded-xl bg-white px-3 text-xs font-black text-[#05052d] transition hover:bg-[#f4f4f4]">
-            <DollarSign className="mr-1 h-3.5 w-3.5" /> Quote Builder
-          </button>
-          <button type="button" onClick={() => { setMode("manual"); setToolsOpen(false); }} className="hidden min-h-10 items-center justify-center rounded-xl bg-[#27AE60] px-3 text-xs font-black text-white transition sm:flex">
-            <Map className="mr-1 h-3.5 w-3.5" /> Map
+          <button type="button" onClick={openSalesPage} className="rounded-2xl bg-white px-4 py-3 text-xs font-black text-[#05052d] shadow-lg shadow-black/20">
+            <DollarSign className="mr-1 inline h-4 w-4" /> Quote
           </button>
         </div>
-        {toolsOpen && (
-          <div className={`grid w-full max-w-4xl gap-1.5 rounded-2xl bg-black/70 p-1.5 ${admin ? "grid-cols-3 sm:grid-cols-4 lg:grid-cols-7" : "grid-cols-2 sm:max-w-xl"}`}>
-            {tabs.map(([key, icon, label]) => (
-              <button key={key} type="button" onClick={() => { setMode(key); setToolsOpen(false); }} className={`flex min-h-10 items-center justify-center rounded-xl px-2 text-xs font-black transition ${mode === key ? "bg-[#D7FF00] text-[#05052d] shadow-lg shadow-[#D7FF00]/20" : "text-white/75 hover:bg-white/10"}`}>
-                {React.cloneElement(icon, { className: "mr-1 h-3.5 w-3.5" })}{label}
-              </button>
-            ))}
-          </div>
-        )}
       </div>
     </header>
+  );
+}
+
+function FloatingTools({ mode, setMode, admin }) {
+  const tabs = admin
+    ? [
+        ["manual", <Scissors />, "Turf"],
+        ["adddot", <Crosshair />, "+ Dot"],
+        ["erase", <Eraser />, "Erase"],
+        ["count", <Target />, "Recount"],
+        ["auto", <Split />, "Auto"],
+        ["upload", <Upload />, "Upload"],
+        ["areas", <Layers />, "Areas"],
+        ["team", <Users />, "Team"],
+      ]
+    : [["manual", <Map />, "Map"], ["team", <Users />, "Team"]];
+
+  return (
+    <div className="fixed bottom-4 left-1/2 z-50 flex max-w-[calc(100vw-1rem)] -translate-x-1/2 gap-1.5 overflow-x-auto rounded-2xl border border-[#D7FF00]/30 bg-[#05052d]/95 p-1.5 shadow-2xl shadow-black/50 backdrop-blur-xl xl:left-auto xl:right-4 xl:top-1/2 xl:bottom-auto xl:translate-x-0 xl:-translate-y-1/2 xl:flex-col xl:overflow-visible">
+      {tabs.map(([key, icon, label]) => (
+        <button key={key} type="button" onClick={() => setMode(key)} className={`flex min-h-11 min-w-[76px] items-center justify-center rounded-xl px-3 text-xs font-black transition xl:min-w-[92px] ${mode === key ? "bg-[#D7FF00] text-[#05052d] shadow-lg shadow-[#D7FF00]/20" : "bg-black/45 text-white/75 hover:bg-white/10"}`}>
+          {React.cloneElement(icon, { className: "mr-1.5 h-4 w-4" })}{label}
+        </button>
+      ))}
+    </div>
   );
 }
 
@@ -1832,7 +1865,7 @@ function ManualBox({ manualRep, setManualRep, polygon, clear, saveManual, admin,
 }
 
 function RepFilter({ selectedRep, setSelectedRep }) { return <Panel><h2 className="mb-4 flex items-center text-2xl font-black"><Filter className="mr-2" /> Map Filter</h2><div className="grid grid-cols-2 gap-2">{["All", ...REPS].map((r) => <button key={r} onClick={() => setSelectedRep(r)} className={`rounded-2xl px-4 py-3 text-lg font-black ${selectedRep === r ? "bg-black text-[#27AE60]" : "bg-white/[0.08]"}`}>{r}</button>)}</div></Panel>; }
-function Tuning({ options, setOptions, reCount }) { return <Panel><h2 className="mb-4 flex items-center text-2xl font-black"><Wand2 className="mr-2" /> Tuning</h2><Slider label="Sensitivity" value={options.sensitivity} min={0} max={10} step={1} onChange={(v) => setOptions({ ...options, sensitivity: Number(v) })} /><Slider label="Dot Size" value={options.expectedDotArea} min={60} max={420} step={10} onChange={(v) => setOptions({ ...options, expectedDotArea: Number(v) })} /><button onClick={reCount} className="mt-4 w-full rounded-2xl bg-black py-4 text-xl font-black text-[#27AE60]">Recount</button></Panel>; }
+function Tuning({ options, setOptions, reCount }) { return <Panel><h2 className="mb-4 flex items-center text-2xl font-black"><Wand2 className="mr-2" /> Dot Fixer</h2><Slider label="Sensitivity" value={options.sensitivity} min={0} max={10} step={1} onChange={(v) => setOptions({ ...options, sensitivity: Number(v) })} /><Slider label="Dot Size" value={options.expectedDotArea} min={60} max={520} step={10} onChange={(v) => setOptions({ ...options, expectedDotArea: Number(v) })} /><label className="mb-3 flex items-center justify-between rounded-2xl bg-black/35 p-3 text-sm font-black"><span>Split clumped dots</span><input type="checkbox" checked={!!options.splitOverlaps} onChange={(e) => setOptions({ ...options, splitOverlaps: e.target.checked })} className="h-5 w-5 accent-[#27AE60]" /></label><button onClick={reCount} className="mt-4 w-full rounded-2xl bg-[#D7FF00] py-4 text-xl font-black text-[#05052d]">Recount + keep manual dots</button><p className="mt-2 text-xs font-bold text-white/45">Use + Dot from the side/bottom toolbar for any missed lead the detector skips.</p></Panel>; }
 function Slider({ label, value, min, max, step, onChange }) { return <label className="mb-4 block"><div className="mb-2 flex justify-between text-lg font-black"><span>{label}</span><span>{value}</span></div><input type="range" min={min} max={max} step={step} value={value} onChange={(e) => onChange(e.target.value)} className="w-full accent-[#27AE60]" /></label>; }
 function MapPanel({ fileRef, upload, activeShot, canvasRef, overlayRef, canvasClick, mode, showDots, setShowDots, showTurf, setShowTurf, showSold, setShowSold, uploadEnabled, startDrag, moveDrag, stopDrag, editMode, startSwipe, endSwipe, handleTouchStart, handleTouchMove, handleTouchEnd }) {
   return (
@@ -1840,7 +1873,7 @@ function MapPanel({ fileRef, upload, activeShot, canvasRef, overlayRef, canvasCl
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-xl font-black">{activeShot?.name || "No screenshot selected"}</p>
-          <p className="text-sm font-bold text-white/50">{mode === "erase" ? "Click a false dot to delete it." : mode === "manual" && editMode ? "Editor is on. Tap zones, drag zones, or drag corners." : mode === "manual" ? "Click to draw a polygon." : "Saved turf stays visible."}</p>
+          <p className="text-sm font-bold text-white/50">{mode === "adddot" ? "Tap any missed lead to manually add a dot." : mode === "erase" ? "Click a false dot to delete it." : mode === "manual" && editMode ? "Editor is on. Tap zones, drag zones, or drag corners." : mode === "manual" ? "Click to draw a polygon." : "Saved turf stays visible."}</p>
         </div>
         <div className="flex gap-2">
           <button onClick={() => setShowDots(!showDots)} className="rounded-xl bg-black px-3 py-2 text-sm font-black text-[#27AE60]">{showDots ? <EyeOff className="mr-1 inline h-4 w-4" /> : <Eye className="mr-1 inline h-4 w-4" />}Dots</button>
@@ -1866,7 +1899,7 @@ function MapPanel({ fileRef, upload, activeShot, canvasRef, overlayRef, canvasCl
         onTouchCancel={stopDrag}
         onDrop={(e) => { e.preventDefault(); if (uploadEnabled) upload(e.dataTransfer.files); }}
         onDragOver={(e) => e.preventDefault()}
-        className={`relative grid min-h-[560px] touch-none place-items-center overflow-auto rounded-[1.25rem] border-2 border-dashed border-[#27AE60]/20 bg-black/35 sm:min-h-[650px] ${mode === "manual" || mode === "erase" ? "cursor-crosshair" : ""}`}
+        className={`relative grid min-h-[560px] touch-none place-items-center overflow-auto rounded-[1.25rem] border-2 border-dashed border-[#27AE60]/20 bg-black/35 sm:min-h-[650px] ${mode === "manual" || mode === "erase" || mode === "adddot" ? "cursor-crosshair" : ""}`}
         style={{ touchAction: "none" }}
       >
         {!activeShot && (
