@@ -8,45 +8,76 @@ const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const supabase = SUPABASE_URL && SUPABASE_ANON_KEY ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 
 const CLOUD_TABLE = "app_state";
-const CLOUD_ID = "gff_os_quote_settings_v2";
-const OLD_CLOUD_ID = "gff_os_quote_settings_v1";
-const LOCAL_KEY = "gff_os_quote_settings_v2";
-const OLD_LOCAL_KEY = "gff_os_quote_settings_v1";
+const CLOUD_ID = "gff_os_quote_settings_fiber_v4";
+const LOCAL_KEY = "gff_os_quote_settings_fiber_v4";
 const PIN = "6969";
 
 const DEFAULT_SETTINGS = {
-  title: "Kinetic Fiber Quote",
-  eyebrow: "Authorized dealer quote tool",
-  subline: "Show the real monthly and the bigger savings without the clutter.",
+  title: "Frontier Fiber Quote",
+  eyebrow: "Authorized fiber quote tool",
+  subline: "Show the real monthly, the first 5 months, and the bigger savings without the clutter.",
   primaryPlanId: "fiber-1g",
   plans: [
-    { id: "fiber-100", name: "fiber", speed: "100 Mbps", price: 19.99, badge: "Saver", featured: false, details: ["Reliable support for essentials like email, browsing, and video chat.", "Perfect for individuals and small families"] },
-    { id: "fiber-300", name: "fiber", speed: "300 Mbps", price: 34.99, badge: "Everyday", featured: false, details: ["Good for most day-to-day internet uses including streaming video.", "AT&T Wireless customers may save $20/mo"] },
-    { id: "fiber-1g", name: "fiber 1 gig", speed: "1 Gig", price: 39.99, badge: "Best value", featured: true, details: ["Boosted speed and capacity for working from home and gaming.", "Faster upload speeds than cable", "AT&T Wireless customers may save $20/mo"] },
-    { id: "fiber-2g", name: "fiber 2 gig", speed: "2 Gig", price: 59.99, badge: "Ultra fast", featured: false, details: ["Ultra-fast speeds for large smart homes.", "Supports dozens of devices streaming simultaneously", "The most advanced Wi-Fi 7 technology"] },
-    { id: "fiber-max-2g", name: "fiber max", speed: "2 Gig", price: 79.99, badge: "Complete bundle", featured: false, details: ["Worry-free internet for the whole home.", "Premium Wi-Fi Gateway and Kinetic Secure Plus", "24/7 always-on Premium Technical Support"] },
+    {
+      id: "fiber-300",
+      name: "Fiber 300",
+      speed: "300 Mbps",
+      price: 34.99,
+      badge: "Starter",
+      featured: false,
+      details: ["Good everyday internet for browsing, streaming, email, and smaller homes."]
+    },
+    {
+      id: "fiber-1g",
+      name: "Fiber 1 Gig",
+      speed: "1 Gig",
+      price: 39.99,
+      badge: "Best value",
+      featured: true,
+      details: ["The main pitch. Fast fiber for streaming, gaming, work, and busy homes."]
+    },
+    {
+      id: "fiber-2g",
+      name: "Fiber 2 Gig",
+      speed: "2 Gig",
+      price: 59.99,
+      badge: "Ultra fast",
+      featured: false,
+      details: ["Built for heavier households with a lot of devices running at once."]
+    },
+    {
+      id: "fiber-2g-max",
+      name: "Fiber 2 Gig Max",
+      speed: "2 Gig Max",
+      price: 79.99,
+      badge: "Whole-home setup",
+      featured: false,
+      details: ["Includes two extenders and the upgraded Wi-Fi setup."]
+    }
   ],
-  router: {
+  modem: {
     enabled: true,
     selectedByDefault: true,
-    name: "Kinetic Gateway rental",
+    name: "Standard modem rental",
     price: 10.99,
-    description: "Router/Wi‑Fi gateway rental. Defaulted on because most quotes need it.",
+    description: "Standard modem/router rental. Defaulted on so the quote reflects the real monthly."
   },
-  attDiscount: {
+  youtubeTv: {
     enabled: true,
-    amount: 20,
-    title: "AT&T Wireless bundle credit",
-    label: "AT&T Wireless customer",
-    description: "Applies a monthly credit when they qualify through the AT&T partnership.",
+    selectedByDefault: false,
+    name: "YouTube TV",
+    price: 82.99,
+    description: "Live TV without the cable box. Good for customers worried about losing normal channels.",
+    channels: ["ABC", "CBS", "NBC", "FOX", "ESPN", "NFL", "TNT", "TBS", "FX", "CNN", "HGTV", "Food"]
   },
-  promo: {
-    enabled: false,
-    amount: 0,
-    label: "Promo / reward card",
-    subtractFromSavings: false,
+  mastercard: {
+    enabled: true,
+    selectedByDefault: false,
+    name: "$100 Mastercard",
+    amount: 100,
+    description: "After 90 days"
   },
-  disclaimer: "Internal quote helper. Final address availability, taxes, fees, autopay requirements, router requirements, and active promos must be confirmed in the official Kinetic order platform.",
+  disclaimer: "Internal quote helper. Final address availability, taxes, fees, autopay requirements, YouTube TV availability, equipment requirements, and active promos must be confirmed in the official order platform."
 };
 
 function money(value) {
@@ -73,31 +104,34 @@ function clone(value) {
 
 function normalizePlans(plans) {
   if (!Array.isArray(plans) || !plans.length) return DEFAULT_SETTINGS.plans;
-  return plans.map((p) => ({ details: [], featured: false, badge: "", ...p }));
+  const cleaned = plans
+    .filter((p) => !String(p?.speed || "").toLowerCase().includes("100 mbps"))
+    .map((p) => ({ details: [], featured: false, badge: "", ...p }));
+  return cleaned.length ? cleaned : DEFAULT_SETTINGS.plans;
 }
 
 function mergeSettings(saved) {
   if (!saved || typeof saved !== "object") return DEFAULT_SETTINGS;
-  const migrated = { ...DEFAULT_SETTINGS, ...saved };
-  // Kill the old provider field if the v1 settings were saved locally/cloud.
-  delete migrated.currentProviderOptions;
   return {
-    ...migrated,
+    ...DEFAULT_SETTINGS,
+    ...saved,
+    title: saved.title || DEFAULT_SETTINGS.title,
+    eyebrow: saved.eyebrow || DEFAULT_SETTINGS.eyebrow,
+    subline: saved.subline || DEFAULT_SETTINGS.subline,
     primaryPlanId: saved.primaryPlanId || DEFAULT_SETTINGS.primaryPlanId,
-    router: { ...DEFAULT_SETTINGS.router, ...(saved.router || {}) },
-    attDiscount: { ...DEFAULT_SETTINGS.attDiscount, ...(saved.attDiscount || {}) },
-    promo: { ...DEFAULT_SETTINGS.promo, ...(saved.promo || {}) },
-    plans: normalizePlans(saved.plans && saved.plans.length > 4 ? saved.plans : DEFAULT_SETTINGS.plans),
+    plans: normalizePlans(saved.plans),
+    modem: { ...DEFAULT_SETTINGS.modem, ...(saved.modem || saved.router || {}) },
+    youtubeTv: { ...DEFAULT_SETTINGS.youtubeTv, ...(saved.youtubeTv || {}) },
+    mastercard: { ...DEFAULT_SETTINGS.mastercard, ...(saved.mastercard || saved.promo || {}) },
+    disclaimer: saved.disclaimer || DEFAULT_SETTINGS.disclaimer
   };
 }
 
 async function loadCloudSettings() {
   if (!supabase) return null;
   try {
-    let res = await supabase.from(CLOUD_TABLE).select("data").eq("id", CLOUD_ID).single();
+    const res = await supabase.from(CLOUD_TABLE).select("data").eq("id", CLOUD_ID).single();
     if (!res.error && res.data?.data) return res.data.data;
-    res = await supabase.from(CLOUD_TABLE).select("data").eq("id", OLD_CLOUD_ID).single();
-    if (!res.error && res.data?.data) return null; // ignore old quote settings so the Kinetic price reset actually happens
     return null;
   } catch {
     return null;
@@ -119,8 +153,7 @@ function loadLocalSettings() {
   try {
     if (typeof window === "undefined") return null;
     const raw = window.localStorage.getItem(LOCAL_KEY);
-    if (raw) return JSON.parse(raw);
-    return null;
+    return raw ? JSON.parse(raw) : null;
   } catch {
     return null;
   }
@@ -141,9 +174,9 @@ export default function GFFQuoteBuilder() {
 
   const [currentBill, setCurrentBill] = useState(100);
   const [activePlanId, setActivePlanId] = useState(DEFAULT_SETTINGS.primaryPlanId);
-  const [routerSelected, setRouterSelected] = useState(DEFAULT_SETTINGS.router.selectedByDefault);
-  const [attSelected, setAttSelected] = useState(false);
-  const [promoSelected, setPromoSelected] = useState(false);
+  const [modemSelected, setModemSelected] = useState(DEFAULT_SETTINGS.modem.selectedByDefault);
+  const [youtubeSelected, setYoutubeSelected] = useState(DEFAULT_SETTINGS.youtubeTv.selectedByDefault);
+  const [mastercardSelected, setMastercardSelected] = useState(DEFAULT_SETTINGS.mastercard.selectedByDefault);
 
   useEffect(() => {
     let dead = false;
@@ -154,7 +187,9 @@ export default function GFFQuoteBuilder() {
       const next = mergeSettings(cloud || local || DEFAULT_SETTINGS);
       setSettings(next);
       setActivePlanId(next.primaryPlanId || next.plans.find((p) => p.featured)?.id || next.plans[0]?.id || "");
-      setRouterSelected(Boolean(next.router.selectedByDefault));
+      setModemSelected(Boolean(next.modem.selectedByDefault));
+      setYoutubeSelected(Boolean(next.youtubeTv.selectedByDefault));
+      setMastercardSelected(Boolean(next.mastercard.selectedByDefault));
       setSaveStatus(cloud ? "cloud loaded" : local ? "local loaded" : "default pricing");
       setLoaded(true);
     }
@@ -171,24 +206,46 @@ export default function GFFQuoteBuilder() {
 
   const math = useMemo(() => {
     const base = Number(activePlan.price || 0);
-    const router = settings.router.enabled && routerSelected ? Number(settings.router.price || 0) : 0;
-    const att = settings.attDiscount.enabled && attSelected ? Number(settings.attDiscount.amount || 0) : 0;
-    const monthly = Math.max(0, base + router - att);
+    const modem = settings.modem.enabled && modemSelected ? Number(settings.modem.price || 0) : 0;
+    const youtube = settings.youtubeTv.enabled && youtubeSelected ? Number(settings.youtubeTv.price || 0) : 0;
+    const monthly = Math.max(0, base + modem + youtube);
     const current = Number(currentBill || 0);
     const monthlySavings = current - monthly;
-    const promoValue = settings.promo.enabled && promoSelected ? Number(settings.promo.amount || 0) : 0;
+    const firstFiveCurrent = current * 5;
+    const reward = settings.mastercard.enabled && mastercardSelected ? Number(settings.mastercard.amount || 0) : 0;
+    const firstFiveFrontierBeforeReward = monthly * 5;
+    const firstFiveFrontier = Math.max(0, firstFiveFrontierBeforeReward - reward);
+    const firstFiveSavings = firstFiveCurrent - firstFiveFrontier;
+    const effectiveFiveMonthAverage = firstFiveFrontier / 5;
+
+    const monthRows = [1, 2, 3, 4, 5].map((month) => {
+      let rewardApplied = 0;
+      if (reward > 0 && month >= 4) {
+        const alreadyApplied = month === 5 ? Math.min(reward, monthly) : 0;
+        const remaining = Math.max(0, reward - alreadyApplied);
+        rewardApplied = Math.min(monthly, remaining);
+      }
+      return { month, bill: monthly, rewardApplied, outOfPocket: Math.max(0, monthly - rewardApplied) };
+    });
+
     return {
       base,
-      router,
-      att,
+      modem,
+      youtube,
       monthly,
       current,
       monthlySavings,
-      yearSavings: monthlySavings * 12 + promoValue,
-      threeYearSavings: monthlySavings * 36 + promoValue,
-      promoValue,
+      yearSavings: monthlySavings * 12 + reward,
+      threeYearSavings: monthlySavings * 36 + reward,
+      reward,
+      firstFiveCurrent,
+      firstFiveFrontierBeforeReward,
+      firstFiveFrontier,
+      firstFiveSavings,
+      effectiveFiveMonthAverage,
+      monthRows
     };
-  }, [activePlan, settings, currentBill, routerSelected, attSelected, promoSelected]);
+  }, [activePlan, settings, currentBill, modemSelected, youtubeSelected, mastercardSelected]);
 
   function unlock() {
     if (pin === PIN) setAdmin(true);
@@ -204,13 +261,13 @@ export default function GFFQuoteBuilder() {
   function resetQuote() {
     setCurrentBill(100);
     setActivePlanId(settings.primaryPlanId || settings.plans.find((p) => p.featured)?.id || settings.plans[0]?.id || "");
-    setRouterSelected(Boolean(settings.router.selectedByDefault));
-    setAttSelected(false);
-    setPromoSelected(false);
+    setModemSelected(Boolean(settings.modem.selectedByDefault));
+    setYoutubeSelected(Boolean(settings.youtubeTv.selectedByDefault));
+    setMastercardSelected(Boolean(settings.mastercard.selectedByDefault));
   }
 
   if (!loaded) {
-    return <main className="quote-shell quote-loading"><div>Loading Kinetic quote...</div></main>;
+    return <main className="quote-shell quote-loading"><div>Loading fiber quote...</div></main>;
   }
 
   return (
@@ -220,7 +277,7 @@ export default function GFFQuoteBuilder() {
       <section className="quote-hero">
         <div className="brand-row">
           <button className="back-button" onClick={() => { if (typeof window !== "undefined") window.location.href = "/"; }}>← GFF Turf</button>
-          <div className="kinetic-mark">kinetic<span>fiber</span></div>
+          <div className="frontier-mark">Frontier<span>fiber quote</span></div>
           <span className="dealer-pill">Authorized dealer quote helper</span>
         </div>
         <div className="hero-copy">
@@ -232,7 +289,7 @@ export default function GFFQuoteBuilder() {
           <div className="monthly-card">
             <small>Estimated monthly</small>
             <strong>{money(math.monthly)}</strong>
-            <em>{money(math.base)} plan {routerSelected ? `+ ${money(math.router)} gateway` : "without gateway"}{attSelected ? ` − ${money(math.att)} AT&T credit` : ""}</em>
+            <em>{money(math.base)} plan{modemSelected ? ` + ${money(math.modem)} modem` : ""}{youtubeSelected ? ` + ${money(math.youtube)} YouTube TV` : ""}</em>
           </div>
         </div>
       </section>
@@ -246,11 +303,11 @@ export default function GFFQuoteBuilder() {
             </div>
           </Card>
 
-          <Card label="02" title="Choose a Kinetic plan">
+          <Card label="02" title="Choose a Frontier plan">
             <div className="plan-grid">
               {settings.plans.map((plan) => {
                 const active = activePlan.id === plan.id;
-                const cardMonthly = Number(plan.price || 0) + (settings.router.enabled && routerSelected ? Number(settings.router.price || 0) : 0) - (settings.attDiscount.enabled && attSelected ? Number(settings.attDiscount.amount || 0) : 0);
+                const cardMonthly = Number(plan.price || 0) + (settings.modem.enabled && modemSelected ? Number(settings.modem.price || 0) : 0) + (settings.youtubeTv.enabled && youtubeSelected ? Number(settings.youtubeTv.price || 0) : 0);
                 return (
                   <button key={plan.id} className={active ? "plan active" : plan.featured ? "plan featured" : "plan"} onClick={() => setActivePlanId(plan.id)}>
                     {plan.featured && <span className="best-strip">best value</span>}
@@ -258,24 +315,37 @@ export default function GFFQuoteBuilder() {
                       <div><strong>{plan.name}</strong><em>{plan.speed}</em></div>
                       <b>{money(Math.max(0, cardMonthly))}<small>/mo</small></b>
                     </div>
-                    <p>{plan.details?.[0] || plan.badge || "Kinetic fiber plan"}</p>
-                    <div className="plan-base">{money(plan.price)}/mo base {routerSelected ? `+ ${money(settings.router.price)} gateway` : ""}</div>
+                    <p>{plan.details?.[0] || plan.badge || "Frontier fiber plan"}</p>
+                    <div className="plan-base">{money(plan.price)}/mo base{modemSelected ? ` + ${money(settings.modem.price)} modem` : ""}{youtubeSelected ? ` + ${money(settings.youtubeTv.price)} TV` : ""}</div>
                   </button>
                 );
               })}
             </div>
           </Card>
 
-          <Card label="03" title="Monthly adjustments">
-            <div className="toggles">
-              {settings.router.enabled && (
-                <Toggle active={routerSelected} onClick={() => setRouterSelected(!routerSelected)} title={settings.router.name} value={(routerSelected ? "+" : "") + money(settings.router.price) + "/mo"} body={settings.router.description} />
+          <Card label="03" title="Monthly add-ons">
+            <div className="addon-grid">
+              {settings.modem.enabled && (
+                <AddonCard active={modemSelected} onClick={() => setModemSelected(!modemSelected)} title={settings.modem.name} price={`+${money(settings.modem.price)}/mo`} body={settings.modem.description} />
               )}
-              {settings.attDiscount.enabled && (
-                <Toggle active={attSelected} onClick={() => setAttSelected(!attSelected)} title={settings.attDiscount.label} value={attSelected ? "-" + money(settings.attDiscount.amount) + "/mo" : "Tap to apply"} body={settings.attDiscount.description} />
+
+              {settings.youtubeTv.enabled && (
+                <AddonCard active={youtubeSelected} onClick={() => setYoutubeSelected(!youtubeSelected)} title={settings.youtubeTv.name} price={`+${money(settings.youtubeTv.price)}/mo`} body={settings.youtubeTv.description}>
+                  <div className="channel-grid">
+                    {settings.youtubeTv.channels.map((channel) => <span key={channel}>{channel}</span>)}
+                  </div>
+                </AddonCard>
               )}
-              {settings.promo.enabled && (
-                <Toggle active={promoSelected} onClick={() => setPromoSelected(!promoSelected)} title={settings.promo.label} value={promoSelected ? "+" + money(settings.promo.amount) + " value" : "Tap if active"} body="Optional promo/reward value. Edit this in admin when promos change." />
+
+              {settings.mastercard.enabled && (
+                <button className={mastercardSelected ? "reward-box active" : "reward-box"} onClick={() => setMastercardSelected(!mastercardSelected)}>
+                  <span className="mini-check">{mastercardSelected ? "✓" : ""}</span>
+                  <div>
+                    <strong>{settings.mastercard.name}</strong>
+                    <p>{settings.mastercard.description}. Unchecked by default. Tap when the promo applies.</p>
+                  </div>
+                  <b>{money(settings.mastercard.amount)}</b>
+                </button>
               )}
             </div>
           </Card>
@@ -287,20 +357,50 @@ export default function GFFQuoteBuilder() {
             <small>Estimated 3-year savings</small>
             <strong>{wholeMoney(math.threeYearSavings)}</strong>
           </div>
-          <div className="year-save">
-            <span>1-year savings</span>
-            <strong>{wholeMoney(math.yearSavings)}</strong>
+
+          <div className="summary-row-pair">
+            <div className="year-save">
+              <span>1-year savings</span>
+              <strong>{wholeMoney(math.yearSavings)}</strong>
+            </div>
+            <div className="monthly-save">
+              <span>Monthly difference</span>
+              <strong className={math.monthlySavings >= 0 ? "good" : "bad"}>{money(math.monthlySavings)}</strong>
+            </div>
           </div>
-          <div className="monthly-save">
-            <span>Monthly difference</span>
-            <strong className={math.monthlySavings >= 0 ? "good" : "bad"}>{money(math.monthlySavings)}</strong>
-          </div>
+
+          <section className="five-month-card">
+            <div className="five-head">
+              <div>
+                <span>First 5 months</span>
+                <strong>{wholeMoney(math.firstFiveSavings)} saved</strong>
+              </div>
+              <b>{money(math.effectiveFiveMonthAverage)}<small>/mo avg</small></b>
+            </div>
+
+            <div className="five-totals">
+              <div><span>Current provider</span><strong>{money(math.firstFiveCurrent)}</strong></div>
+              <div><span>Frontier before card</span><strong>{money(math.firstFiveFrontierBeforeReward)}</strong></div>
+              {math.reward > 0 && <div><span>Mastercard credit</span><strong>-{money(math.reward)}</strong></div>}
+              <div className="net"><span>Frontier effective total</span><strong>{money(math.firstFiveFrontier)}</strong></div>
+            </div>
+
+            <div className="month-strip">
+              {math.monthRows.map((row) => (
+                <div key={row.month}>
+                  <span>M{row.month}</span>
+                  <strong>{money(row.outOfPocket)}</strong>
+                  {row.rewardApplied > 0 && <em>{money(row.rewardApplied)} card</em>}
+                </div>
+              ))}
+            </div>
+          </section>
 
           <div className="comparison">
             <div><span>Current bill</span><strong>{money(math.current)}</strong></div>
             <div><span>{activePlan.name}</span><strong>{money(math.base)}</strong></div>
-            {settings.router.enabled && routerSelected && <div><span>Gateway rental</span><strong>+{money(math.router)}</strong></div>}
-            {settings.attDiscount.enabled && attSelected && <div><span>AT&T credit</span><strong>-{money(math.att)}</strong></div>}
+            {settings.modem.enabled && modemSelected && <div><span>Modem rental</span><strong>+{money(math.modem)}</strong></div>}
+            {settings.youtubeTv.enabled && youtubeSelected && <div><span>YouTube TV</span><strong>+{money(math.youtube)}</strong></div>}
             <div className="total"><span>Estimated monthly</span><strong>{money(math.monthly)}</strong></div>
           </div>
 
@@ -328,14 +428,31 @@ function Card({ label, title, children }) {
   return <section className="card"><div className="card-title"><span>{label}</span><h2>{title}</h2></div>{children}</section>;
 }
 
-function Toggle({ active, onClick, title, value, body }) {
-  return <button className={active ? "toggle active" : "toggle"} onClick={onClick}><div><strong>{title}</strong><p>{body}</p></div><span>{value}</span></button>;
+function AddonCard({ active, onClick, title, price, body, children }) {
+  return (
+    <button className={active ? "addon-card active" : "addon-card"} onClick={onClick}>
+      <div className="addon-top">
+        <span className="addon-check">{active ? "✓" : ""}</span>
+        <div>
+          <strong>{title}</strong>
+          <p>{body}</p>
+        </div>
+        <b>{price}</b>
+      </div>
+      {children}
+    </button>
+  );
 }
 
 function AdminEditor({ settings, setSettings, saveCloud, saveStatus }) {
   function updatePlan(id, field, value) {
-    setSettings({ ...settings, plans: settings.plans.map((p) => p.id === id ? { ...p, [field]: field === "price" ? parseMoney(value) : field === "featured" ? Boolean(value) : value } : field === "featured" && value ? { ...p, featured: false } : p), primaryPlanId: field === "featured" && value ? id : settings.primaryPlanId });
+    setSettings({
+      ...settings,
+      plans: settings.plans.map((p) => p.id === id ? { ...p, [field]: field === "price" ? parseMoney(value) : field === "featured" ? Boolean(value) : value } : field === "featured" && value ? { ...p, featured: false } : p),
+      primaryPlanId: field === "featured" && value ? id : settings.primaryPlanId
+    });
   }
+
   function movePlan(id, dir) {
     const plans = [...settings.plans];
     const i = plans.findIndex((p) => p.id === id);
@@ -344,14 +461,21 @@ function AdminEditor({ settings, setSettings, saveCloud, saveStatus }) {
     [plans[i], plans[j]] = [plans[j], plans[i]];
     setSettings({ ...settings, plans });
   }
+
   function addPlan() {
     const id = "plan-" + Date.now();
     setSettings({ ...settings, plans: [...settings.plans, { id, name: "New Plan", speed: "", price: 0, badge: "", featured: false, details: [""] }] });
   }
+
   function removePlan(id) {
     const plans = settings.plans.filter((p) => p.id !== id);
     setSettings({ ...settings, plans, primaryPlanId: settings.primaryPlanId === id ? plans[0]?.id || "" : settings.primaryPlanId });
   }
+
+  function updateChannelText(value) {
+    setSettings({ ...settings, youtubeTv: { ...settings.youtubeTv, channels: value.split(",").map((x) => x.trim()).filter(Boolean) } });
+  }
+
   return (
     <div className="admin-editor">
       <div className="admin-head"><h2>Pricing editor</h2><button onClick={saveCloud}>Save cloud</button><span>{saveStatus}</span></div>
@@ -359,7 +483,8 @@ function AdminEditor({ settings, setSettings, saveCloud, saveStatus }) {
         <label>Title<input value={settings.title} onChange={(e) => setSettings({ ...settings, title: e.target.value })} /></label>
         <label>Subline<input value={settings.subline} onChange={(e) => setSettings({ ...settings, subline: e.target.value })} /></label>
       </div>
-      <h3>Plans drag-ish controls</h3>
+
+      <h3>Plans</h3>
       <div className="plan-admin-list">
         {settings.plans.map((plan) => (
           <div className="plan-admin" key={plan.id}>
@@ -374,24 +499,169 @@ function AdminEditor({ settings, setSettings, saveCloud, saveStatus }) {
         ))}
       </div>
       <button className="mini-add" onClick={addPlan}>Add plan</button>
-      <h3>Router / AT&T / promo</h3>
+
+      <h3>Add-ons and promo</h3>
       <div className="admin-form three">
-        <label>Router price<input value={settings.router.price} onChange={(e) => setSettings({ ...settings, router: { ...settings.router, price: parseMoney(e.target.value) } })} /></label>
-        <label>AT&T credit<input value={settings.attDiscount.amount} onChange={(e) => setSettings({ ...settings, attDiscount: { ...settings.attDiscount, amount: parseMoney(e.target.value) } })} /></label>
-        <label>Promo amount<input value={settings.promo.amount} onChange={(e) => setSettings({ ...settings, promo: { ...settings.promo, amount: parseMoney(e.target.value) } })} /></label>
+        <label>Modem price<input value={settings.modem.price} onChange={(e) => setSettings({ ...settings, modem: { ...settings.modem, price: parseMoney(e.target.value) } })} /></label>
+        <label>YouTube TV price<input value={settings.youtubeTv.price} onChange={(e) => setSettings({ ...settings, youtubeTv: { ...settings.youtubeTv, price: parseMoney(e.target.value) } })} /></label>
+        <label>Mastercard amount<input value={settings.mastercard.amount} onChange={(e) => setSettings({ ...settings, mastercard: { ...settings.mastercard, amount: parseMoney(e.target.value) } })} /></label>
+      </div>
+      <div className="admin-form">
+        <label>YouTube TV channels, comma separated<input value={settings.youtubeTv.channels.join(", ")} onChange={(e) => updateChannelText(e.target.value)} /></label>
       </div>
       <div className="admin-checks">
-        <label><input type="checkbox" checked={settings.router.enabled} onChange={(e) => setSettings({ ...settings, router: { ...settings.router, enabled: e.target.checked } })} /> Show router</label>
-        <label><input type="checkbox" checked={settings.router.selectedByDefault} onChange={(e) => setSettings({ ...settings, router: { ...settings.router, selectedByDefault: e.target.checked } })} /> Router default on</label>
-        <label><input type="checkbox" checked={settings.attDiscount.enabled} onChange={(e) => setSettings({ ...settings, attDiscount: { ...settings.attDiscount, enabled: e.target.checked } })} /> Show AT&T credit</label>
-        <label><input type="checkbox" checked={settings.promo.enabled} onChange={(e) => setSettings({ ...settings, promo: { ...settings.promo, enabled: e.target.checked } })} /> Show promo</label>
+        <label><input type="checkbox" checked={settings.modem.enabled} onChange={(e) => setSettings({ ...settings, modem: { ...settings.modem, enabled: e.target.checked } })} /> Show modem</label>
+        <label><input type="checkbox" checked={settings.modem.selectedByDefault} onChange={(e) => setSettings({ ...settings, modem: { ...settings.modem, selectedByDefault: e.target.checked } })} /> Modem default on</label>
+        <label><input type="checkbox" checked={settings.youtubeTv.enabled} onChange={(e) => setSettings({ ...settings, youtubeTv: { ...settings.youtubeTv, enabled: e.target.checked } })} /> Show YouTube TV</label>
+        <label><input type="checkbox" checked={settings.mastercard.enabled} onChange={(e) => setSettings({ ...settings, mastercard: { ...settings.mastercard, enabled: e.target.checked } })} /> Show Mastercard</label>
       </div>
     </div>
   );
 }
 
 const css = `
-  :root{background:#f5f7f1;color:#02002f}*{box-sizing:border-box}button,input{font:inherit}button{cursor:pointer;border:0}input{border:0;outline:0}.quote-shell{min-height:100vh;background:radial-gradient(circle at top left,rgba(215,255,0,.24),transparent 28%),linear-gradient(180deg,#f7faf2 0%,#ffffff 48%,#eef4e9 100%);padding:18px;color:#02002f;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.quote-loading{display:grid;place-items:center;font-size:34px;font-weight:1000}.quote-hero,.card,.summary-card,.admin-card{border:1px solid rgba(2,0,47,.10);background:#fff;box-shadow:0 18px 48px rgba(2,0,47,.12);border-radius:28px}.quote-hero{padding:20px;margin:0 auto 18px;max-width:1340px;border-top:12px solid #dfff00}.brand-row{display:flex;align-items:center;justify-content:space-between;gap:12px}.back-button{border-radius:999px;background:#02002f;color:#fff;padding:11px 16px;font-weight:1000}.kinetic-mark{font-size:35px;line-height:.85;font-weight:1000;letter-spacing:-.07em;color:#22a86b}.kinetic-mark span{display:block;color:#02002f;font-size:15px;letter-spacing:.18em;text-transform:uppercase}.dealer-pill{border-radius:999px;background:#dfff00;color:#02002f;padding:10px 14px;font-size:12px;font-weight:1000;text-transform:uppercase;letter-spacing:.12em}.hero-copy{display:grid;grid-template-columns:1fr auto;gap:24px;align-items:end;margin-top:18px}.hero-copy p{margin:0 0 8px;color:#169b62;font-size:12px;font-weight:1000;text-transform:uppercase;letter-spacing:.16em}.hero-copy h1{font-size:clamp(44px,6vw,78px);line-height:.9;margin:0;letter-spacing:-.08em;color:#02002f}.hero-copy span{display:block;margin-top:10px;color:#4b5563;font-size:17px;font-weight:850}.monthly-card{border-radius:26px;background:#02002f;color:#fff;padding:20px 24px;min-width:310px;text-align:right}.monthly-card small{display:block;color:#dfff00;text-transform:uppercase;font-size:11px;font-weight:1000;letter-spacing:.16em}.monthly-card strong{display:block;font-size:50px;letter-spacing:-.08em}.monthly-card em{display:block;color:#dbe3ef;font-size:12px;font-style:normal;font-weight:850}.quote-grid{display:grid;grid-template-columns:minmax(0,1fr) 420px;gap:18px;max-width:1340px;margin:0 auto}.left-stack{display:grid;gap:18px}.card,.summary-card,.admin-card{padding:18px}.card-title{display:flex;align-items:center;gap:12px;margin-bottom:16px}.card-title span{display:grid;place-items:center;min-width:38px;height:34px;border-radius:999px;background:#dfff00;color:#02002f;font-weight:1000}.card-title h2{margin:0;font-size:24px;letter-spacing:-.04em}.bill-row label{display:block;color:#169b62;font-size:13px;font-weight:1000;text-transform:uppercase;letter-spacing:.12em}.money-input{margin-top:8px;display:flex;align-items:center;gap:8px;border-radius:24px;background:#f3f6ef;border:2px solid #dfff00;padding:10px 18px}.money-input span{font-size:42px;font-weight:1000;color:#169b62}.money-input input{width:100%;background:transparent;color:#02002f;font-size:58px;font-weight:1000;letter-spacing:-.08em}.plan-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px}.plan{position:relative;overflow:hidden;text-align:left;border-radius:24px;background:#fff;border:1px solid rgba(2,0,47,.14);color:#02002f;padding:18px;min-height:240px;transition:.18s ease}.plan.featured{border-color:#dfff00}.plan.active{background:#02002f;color:#fff;border-color:#02002f;box-shadow:0 18px 45px rgba(2,0,47,.22);transform:translateY(-2px)}.best-strip{position:absolute;inset:0 0 auto 0;background:#dfff00;color:#02002f;text-align:center;font-size:11px;font-weight:1000;text-transform:uppercase;letter-spacing:.1em;padding:6px}.plan-head{display:grid;grid-template-columns:1fr;gap:8px;align-items:start;margin-top:12px}.plan strong{display:block;color:#169b62;font-size:24px;letter-spacing:-.04em}.plan.active strong{color:#dfff00}.plan em{display:block;margin-top:3px;color:inherit;font-style:normal;font-weight:1000}.plan b{display:block;font-size:38px;letter-spacing:-.07em;line-height:1}.plan b small{font-size:12px;letter-spacing:0}.plan p{margin:18px 0 0;min-height:56px;color:inherit;font-size:14px;font-weight:850;line-height:1.35}.plan-base{margin-top:12px;border-radius:999px;background:#f2f3f0;color:#02002f;padding:8px 10px;font-size:11px;font-weight:1000}.plan.active .plan-base{background:rgba(255,255,255,.14);color:#fff}.toggles{display:grid;gap:10px}.toggle{display:flex;justify-content:space-between;align-items:center;text-align:left;gap:14px;border-radius:22px;background:#f3f6ef;color:#02002f;padding:16px;border:2px solid transparent;transition:.18s ease}.toggle.active{border-color:#dfff00;background:#f8ffe0}.toggle strong{display:block;font-size:18px}.toggle p{margin:5px 0 0;color:#4b5563;font-weight:750}.toggle span{font-weight:1000;color:#169b62;white-space:nowrap}.summary-card{position:sticky;top:18px;align-self:start;background:#fff;color:#02002f;border-top:12px solid #dfff00}.summary-pill{display:inline-flex;border-radius:999px;background:#02002f;color:#fff;padding:9px 12px;font-size:12px;font-weight:1000;text-transform:uppercase;letter-spacing:.12em}.big-save{margin-top:18px;border-radius:24px;background:#02002f;padding:18px}.big-save small{display:block;color:#dbe3ef;font-size:13px;font-weight:1000;text-transform:uppercase;letter-spacing:.12em}.big-save strong{display:block;font-size:76px;letter-spacing:-.09em;color:#dfff00;line-height:.95}.year-save{margin-top:10px;border-radius:22px;background:#22a86b;color:#fff;padding:16px}.year-save span,.monthly-save span{display:block;font-size:12px;font-weight:1000;text-transform:uppercase;letter-spacing:.12em;opacity:.85}.year-save strong{display:block;font-size:42px;letter-spacing:-.07em}.monthly-save{margin-top:10px;border-radius:18px;background:#eef3ea;color:#02002f;padding:14px}.monthly-save strong{display:block;font-size:28px;letter-spacing:-.05em}.good{color:#169b62}.bad{color:#c2410c}.comparison{display:grid;gap:9px;margin-top:14px}.comparison div{display:flex;justify-content:space-between;gap:10px;border-radius:16px;background:#f3f6ef;padding:13px}.comparison span{color:#4b5563;font-weight:800}.comparison strong{font-weight:1000}.comparison .total{background:#02002f;color:#fff}.comparison .total span{color:#fff}.reset-button{width:100%;margin-top:14px;border-radius:18px;background:#dfff00;color:#02002f;padding:14px;font-weight:1000}.disclaimer{color:#4b5563;font-size:12px;line-height:1.45;font-weight:700}.admin-card{max-width:1340px;margin:18px auto 0}.admin-login{display:flex;gap:10px;align-items:center}.admin-login span{font-weight:1000;color:#02002f}.admin-login input{border-radius:14px;background:#f3f6ef;color:#02002f;padding:12px;width:110px}.admin-login button,.admin-head button,.mini-add,.plan-admin button,.reorder button{border-radius:14px;background:#02002f;color:#fff;padding:12px 14px;font-weight:1000}.admin-head{display:flex;gap:12px;align-items:center;justify-content:space-between}.admin-head h2,.admin-editor h3{margin:0}.admin-form{display:grid;gap:10px;margin:12px 0}.admin-form.two{grid-template-columns:1fr 1fr}.admin-form.three{grid-template-columns:repeat(3,1fr)}.admin-form label,.admin-checks label{color:#4b5563;font-size:12px;font-weight:1000;text-transform:uppercase;letter-spacing:.08em}.admin-form input,.plan-admin input{display:block;margin-top:6px;width:100%;border-radius:14px;background:#f3f6ef;color:#02002f;padding:12px}.plan-admin-list{display:grid;gap:10px;margin:12px 0}.plan-admin{display:grid;grid-template-columns:auto 1.1fr .8fr .6fr .9fr auto auto;gap:8px;align-items:center}.reorder{display:flex;gap:4px}.reorder button{padding:10px}.check{display:flex;gap:6px;align-items:center;color:#4b5563;font-size:12px;font-weight:900}.admin-checks{display:flex;flex-wrap:wrap;gap:14px;margin-top:14px}.admin-checks label{display:flex;gap:8px;align-items:center}
-  @media(max-width:1120px){.quote-grid{grid-template-columns:1fr}.summary-card{position:relative;top:auto}.hero-copy{grid-template-columns:1fr}.monthly-card{text-align:left}.admin-form.two,.admin-form.three,.plan-admin{grid-template-columns:1fr}.plan-admin .reorder{justify-content:start}}
-  @media(max-width:700px){.plan-grid{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;padding-bottom:8px}.plan{min-width:260px;scroll-snap-align:start}.quote-shell{padding:10px}.quote-hero,.card,.summary-card,.admin-card{border-radius:22px;padding:14px}.hero-copy h1{font-size:44px}.money-input input{font-size:44px}.monthly-card strong{font-size:42px}.big-save strong{font-size:58px}.brand-row{flex-wrap:wrap}.admin-login{flex-wrap:wrap}}
+  :root{background:#f5f7f1;color:#02002f}
+  *{box-sizing:border-box}
+  button,input{font:inherit}
+  button{cursor:pointer;border:0}
+  input{border:0;outline:0}
+  .quote-shell{min-height:100vh;background:radial-gradient(circle at top left,rgba(215,255,0,.24),transparent 28%),linear-gradient(180deg,#f7faf2 0%,#ffffff 48%,#eef4e9 100%);padding:18px;color:#02002f;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+  .quote-loading{display:grid;place-items:center;font-size:34px;font-weight:1000}
+  .quote-hero,.card,.summary-card,.admin-card{border:1px solid rgba(2,0,47,.10);background:#fff;box-shadow:0 18px 48px rgba(2,0,47,.12);border-radius:28px}
+  .quote-hero{padding:20px;margin:0 auto 18px;max-width:1340px;border-top:12px solid #dfff00}
+  .brand-row{display:flex;align-items:center;justify-content:space-between;gap:12px}
+  .back-button{border-radius:999px;background:#02002f;color:#fff;padding:11px 16px;font-weight:1000}
+  .frontier-mark{font-size:36px;line-height:.85;font-weight:1000;letter-spacing:-.07em;color:#d4111e}
+  .frontier-mark span{display:block;color:#02002f;font-size:13px;letter-spacing:.18em;text-transform:uppercase}
+  .dealer-pill{border-radius:999px;background:#dfff00;color:#02002f;padding:10px 14px;font-size:12px;font-weight:1000;text-transform:uppercase;letter-spacing:.12em}
+  .hero-copy{display:grid;grid-template-columns:1fr auto;gap:24px;align-items:end;margin-top:18px}
+  .hero-copy p{margin:0 0 8px;color:#169b62;font-size:12px;font-weight:1000;text-transform:uppercase;letter-spacing:.16em}
+  .hero-copy h1{font-size:clamp(44px,6vw,78px);line-height:.9;margin:0;letter-spacing:-.08em;color:#02002f}
+  .hero-copy span{display:block;margin-top:10px;color:#4b5563;font-size:17px;font-weight:850}
+  .monthly-card{border-radius:26px;background:#02002f;color:#fff;padding:20px 24px;min-width:310px;text-align:right}
+  .monthly-card small{display:block;color:#dfff00;text-transform:uppercase;font-size:11px;font-weight:1000;letter-spacing:.16em}
+  .monthly-card strong{display:block;font-size:50px;letter-spacing:-.08em}
+  .monthly-card em{display:block;color:#dbe3ef;font-size:12px;font-style:normal;font-weight:850}
+  .quote-grid{display:grid;grid-template-columns:minmax(0,1fr) 450px;gap:18px;max-width:1340px;margin:0 auto}
+  .left-stack{display:grid;gap:18px}
+  .card,.summary-card,.admin-card{padding:18px}
+  .card-title{display:flex;align-items:center;gap:12px;margin-bottom:16px}
+  .card-title span{display:grid;place-items:center;min-width:38px;height:34px;border-radius:999px;background:#dfff00;color:#02002f;font-weight:1000}
+  .card-title h2{margin:0;font-size:24px;letter-spacing:-.04em}
+  .bill-row label{display:block;color:#169b62;font-size:13px;font-weight:1000;text-transform:uppercase;letter-spacing:.12em}
+  .money-input{margin-top:8px;display:flex;align-items:center;gap:8px;border-radius:24px;background:#f3f6ef;border:2px solid #dfff00;padding:10px 18px}
+  .money-input span{font-size:42px;font-weight:1000;color:#169b62}
+  .money-input input{width:100%;background:transparent;color:#02002f;font-size:58px;font-weight:1000;letter-spacing:-.08em}
+  .plan-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px}
+  .plan{position:relative;overflow:hidden;text-align:left;border-radius:24px;background:#fff;border:1px solid rgba(2,0,47,.14);color:#02002f;padding:18px;min-height:240px;transition:.18s ease}
+  .plan.featured{border-color:#dfff00}
+  .plan.active{background:#02002f;color:#fff;border-color:#02002f;box-shadow:0 18px 45px rgba(2,0,47,.22);transform:translateY(-2px)}
+  .best-strip{position:absolute;inset:0 0 auto 0;background:#dfff00;color:#02002f;text-align:center;font-size:11px;font-weight:1000;text-transform:uppercase;letter-spacing:.1em;padding:6px}
+  .plan-head{display:grid;grid-template-columns:1fr;gap:8px;align-items:start;margin-top:12px}
+  .plan strong{display:block;color:#169b62;font-size:24px;letter-spacing:-.04em}
+  .plan.active strong{color:#dfff00}
+  .plan em{display:block;margin-top:3px;color:inherit;font-style:normal;font-weight:1000}
+  .plan b{display:block;font-size:38px;letter-spacing:-.07em;line-height:1}
+  .plan b small{font-size:12px;letter-spacing:0}
+  .plan p{margin:18px 0 0;min-height:56px;color:inherit;font-size:14px;font-weight:850;line-height:1.35}
+  .plan-base{margin-top:12px;border-radius:999px;background:#f2f3f0;color:#02002f;padding:8px 10px;font-size:11px;font-weight:1000}
+  .plan.active .plan-base{background:rgba(255,255,255,.14);color:#fff}
+
+  .addon-grid{display:grid;grid-template-columns:1fr;gap:12px}
+  .addon-card,.reward-box{width:100%;text-align:left;border-radius:22px;background:#f5f7f1;color:#02002f;border:2px solid rgba(2,0,47,.08);padding:15px;transition:.18s ease}
+  .addon-card.active,.reward-box.active{background:#f9ffe5;border-color:#dfff00;box-shadow:0 10px 30px rgba(2,0,47,.08)}
+  .addon-top{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:12px}
+  .addon-check,.mini-check{width:28px;height:28px;border-radius:8px;display:grid;place-items:center;border:2px solid rgba(2,0,47,.18);background:#fff;color:#02002f;font-weight:1000}
+  .addon-card.active .addon-check,.reward-box.active .mini-check{background:#dfff00;border-color:#dfff00}
+  .addon-top strong,.reward-box strong{display:block;font-size:18px;font-weight:1000}
+  .addon-top p,.reward-box p{margin:4px 0 0;color:#4b5563;font-weight:750;font-size:13px;line-height:1.35}
+  .addon-top b,.reward-box b{justify-self:end;color:#169b62;font-size:18px;font-weight:1000;white-space:nowrap}
+  .channel-grid{display:flex;flex-wrap:wrap;gap:7px;margin:12px 0 0 40px}
+  .channel-grid span{border-radius:999px;background:#fff;border:1px solid rgba(2,0,47,.10);padding:7px 10px;font-size:12px;font-weight:1000;color:#02002f}
+  .reward-box{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:12px;max-width:520px}
+  .reward-box b{font-size:20px}
+
+  .summary-card{position:sticky;top:18px;align-self:start;background:#fff;color:#02002f;border-top:12px solid #dfff00}
+  .summary-pill{display:inline-flex;border-radius:999px;background:#02002f;color:#fff;padding:9px 12px;font-size:12px;font-weight:1000;text-transform:uppercase;letter-spacing:.12em}
+  .big-save{margin-top:18px;border-radius:24px;background:#02002f;padding:18px}
+  .big-save small{display:block;color:#dbe3ef;font-size:13px;font-weight:1000;text-transform:uppercase;letter-spacing:.12em}
+  .big-save strong{display:block;font-size:68px;letter-spacing:-.09em;color:#dfff00;line-height:.95}
+  .summary-row-pair{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+  .year-save,.monthly-save{border-radius:18px;padding:14px}
+  .year-save{background:#22a86b;color:#fff}
+  .monthly-save{background:#eef3ea;color:#02002f}
+  .year-save span,.monthly-save span{display:block;font-size:11px;font-weight:1000;text-transform:uppercase;letter-spacing:.1em;opacity:.85}
+  .year-save strong,.monthly-save strong{display:block;font-size:26px;letter-spacing:-.05em}
+  .good{color:#169b62}.bad{color:#c2410c}
+
+  .five-month-card{margin-top:12px;border-radius:22px;background:#f5f7f1;border:1px solid rgba(2,0,47,.08);padding:14px}
+  .five-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+  .five-head span{display:block;color:#4b5563;font-size:11px;font-weight:1000;text-transform:uppercase;letter-spacing:.12em}
+  .five-head strong{display:block;color:#169b62;font-size:25px;letter-spacing:-.05em}
+  .five-head b{font-size:24px;letter-spacing:-.05em;color:#02002f;text-align:right}
+  .five-head small{display:block;font-size:11px;letter-spacing:0;color:#4b5563}
+  .five-totals{display:grid;gap:7px;margin-top:12px}
+  .five-totals div{display:flex;justify-content:space-between;gap:10px;border-radius:13px;background:#fff;padding:10px}
+  .five-totals span{color:#4b5563;font-weight:850}
+  .five-totals strong{font-weight:1000}
+  .five-totals .net{background:#02002f;color:#fff}
+  .five-totals .net span{color:#fff}
+  .month-strip{display:grid;grid-template-columns:repeat(5,1fr);gap:7px;margin-top:10px}
+  .month-strip div{border-radius:13px;background:#fff;padding:9px;text-align:center;border:1px solid rgba(2,0,47,.08)}
+  .month-strip span{display:block;color:#4b5563;font-size:11px;font-weight:1000}
+  .month-strip strong{display:block;font-size:15px}
+  .month-strip em{display:block;color:#169b62;font-size:10px;font-style:normal;font-weight:900}
+
+  .comparison{display:grid;gap:9px;margin-top:14px}
+  .comparison div{display:flex;justify-content:space-between;gap:10px;border-radius:16px;background:#f3f6ef;padding:13px}
+  .comparison span{color:#4b5563;font-weight:800}
+  .comparison strong{font-weight:1000}
+  .comparison .total{background:#02002f;color:#fff}
+  .comparison .total span{color:#fff}
+  .reset-button{width:100%;margin-top:14px;border-radius:18px;background:#dfff00;color:#02002f;padding:14px;font-weight:1000}
+  .disclaimer{color:#4b5563;font-size:12px;line-height:1.45;font-weight:700}
+
+  .admin-card{max-width:1340px;margin:18px auto 0}
+  .admin-login{display:flex;gap:10px;align-items:center}
+  .admin-login span{font-weight:1000;color:#02002f}
+  .admin-login input{border-radius:14px;background:#f3f6ef;color:#02002f;padding:12px;width:110px}
+  .admin-login button,.admin-head button,.mini-add,.plan-admin button,.reorder button{border-radius:14px;background:#02002f;color:#fff;padding:12px 14px;font-weight:1000}
+  .admin-head{display:flex;gap:12px;align-items:center;justify-content:space-between}
+  .admin-head h2,.admin-editor h3{margin:0}
+  .admin-form{display:grid;gap:10px;margin:12px 0}
+  .admin-form.two{grid-template-columns:1fr 1fr}
+  .admin-form.three{grid-template-columns:repeat(3,1fr)}
+  .admin-form label,.admin-checks label{color:#4b5563;font-size:12px;font-weight:1000;text-transform:uppercase;letter-spacing:.08em}
+  .admin-form input,.plan-admin input{display:block;margin-top:6px;width:100%;border-radius:14px;background:#f3f6ef;color:#02002f;padding:12px}
+  .plan-admin-list{display:grid;gap:10px;margin:12px 0}
+  .plan-admin{display:grid;grid-template-columns:auto 1.1fr .8fr .6fr .9fr auto auto;gap:8px;align-items:center}
+  .reorder{display:flex;gap:4px}
+  .reorder button{padding:10px}
+  .check{display:flex;gap:6px;align-items:center;color:#4b5563;font-size:12px;font-weight:900}
+  .admin-checks{display:flex;flex-wrap:wrap;gap:14px;margin-top:14px}
+  .admin-checks label{display:flex;gap:8px;align-items:center}
+
+  @media(max-width:1120px){
+    .quote-grid{grid-template-columns:1fr}
+    .summary-card{position:relative;top:auto}
+    .hero-copy{grid-template-columns:1fr}
+    .monthly-card{text-align:left}
+    .admin-form.two,.admin-form.three,.plan-admin{grid-template-columns:1fr}
+    .plan-admin .reorder{justify-content:start}
+  }
+  @media(max-width:700px){
+    .plan-grid{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;padding-bottom:8px}
+    .plan{min-width:260px;scroll-snap-align:start}
+    .quote-shell{padding:10px}
+    .quote-hero,.card,.summary-card,.admin-card{border-radius:22px;padding:14px}
+    .hero-copy h1{font-size:44px}
+    .money-input input{font-size:44px}
+    .monthly-card strong{font-size:42px}
+    .big-save strong{font-size:52px}
+    .brand-row{flex-wrap:wrap}
+    .summary-row-pair{grid-template-columns:1fr}
+    .month-strip{grid-template-columns:repeat(5,minmax(62px,1fr));overflow-x:auto}
+    .reward-box{max-width:none}
+    .admin-login{flex-wrap:wrap}
+  }
 `;

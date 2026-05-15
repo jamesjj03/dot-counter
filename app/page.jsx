@@ -66,21 +66,23 @@ const DEFAULT_APP = {
   sales: {
     currentBill: 100,
     activePlanId: "fiber-1g",
-    selectedAddonIds: [],
+    selectedAddonIds: ["modem"],
+    mastercardPromo: false,
     plans: [
-      { id: "fiber-100", name: "Fiber 100", speed: "100 Mbps", price: 19.99, badge: "Saver", bullets: ["Email, browsing, video chat", "Small homes", "Budget option"] },
-      { id: "fiber-300", name: "Fiber 300", speed: "300 Mbps", price: 34.99, badge: "Everyday", bullets: ["Streaming video", "Day-to-day internet", "AT&T customers may save $20/mo"] },
-      { id: "fiber-1g", name: "Fiber 1 Gig", speed: "1 Gig", price: 39.99, badge: "Best value", bullets: ["Work from home and gaming", "Fast upload speeds", "AT&T customers may save $20/mo"] },
-      { id: "fiber-2g", name: "Fiber 2 Gig", speed: "2 Gig", price: 59.99, badge: "Ultra fast", bullets: ["Large smart homes", "Dozens of devices", "Wi-Fi 7 capable"] },
-      { id: "fiber-max-2g", name: "Fiber Max 2 Gig", speed: "2 Gig", price: 79.99, badge: "Equipment + security", bullets: ["Premium Wi-Fi Gateway", "Kinetic Secure Plus", "24/7 premium support"] },
+      { id: "fiber-300", name: "Fiber 300", speed: "300 Mbps", price: 34.99, badge: "Starter", bullets: ["Good basic fiber plan", "Streaming and browsing", "No 100 Mbps filler plan"] },
+      { id: "fiber-1g", name: "Fiber 1 Gig", speed: "1 Gig", price: 39.99, badge: "Best value", bullets: ["Most common pitch", "Fast uploads and downloads", "Strong everyday household plan"] },
+      { id: "fiber-2g", name: "Fiber 2 Gig", speed: "2 Gig", price: 59.99, badge: "Fast", bullets: ["Bigger homes", "Gaming, work, and streaming", "More room for devices"] },
+      { id: "fiber-max-2g", name: "Fiber 2 Gig Max", speed: "2 Gig Max", price: 79.99, badge: "Max Wi-Fi", bullets: ["Includes 2 extenders", "Extra Wi-Fi coverage", "Best for bigger layouts"] },
     ],
     addons: [
-      { id: "router", name: "Kinetic Gateway", price: 10.99, note: "Router rental / Wi-Fi gateway." },
+      { id: "modem", name: "Standard modem rental", price: 10.99, note: "Monthly equipment rental." },
+      { id: "youtube-tv", name: "YouTube TV", price: 82.99, note: "Live TV package with major channels." },
     ],
+    youtubeChannels: ["ABC", "CBS", "NBC", "FOX", "ESPN", "TNT", "TBS", "CNN", "FOX News", "NFL Network", "FX", "USA"],
     fiberPoints: [
       "Fiber sends data as light through glass, so it is built for speed.",
       "Upload speed matters for cameras, video calls, gaming, and work from home.",
-      "Fiber is the upgrade from old cable-style internet, not just another plan."
+      "You are not just switching plans. You are getting off the old cable-style system."
     ],
   },
   options: {
@@ -142,8 +144,18 @@ function normalizeAppState(value) {
     reps: Array.isArray(g.reps) ? g.reps.filter((r) => REPS.includes(r)) : [],
   })) : base.carGroups;
   app.sales = { ...base.sales, ...(incoming.sales && typeof incoming.sales === "object" ? incoming.sales : {}) };
-  app.sales.plans = Array.isArray(app.sales.plans) && app.sales.plans.length ? app.sales.plans : base.sales.plans;
-  app.sales.addons = Array.isArray(app.sales.addons) ? app.sales.addons : base.sales.addons;
+  const basePlans = base.sales.plans || [];
+  const incomingPlans = Array.isArray(app.sales.plans) ? app.sales.plans : [];
+  const mergedPlans = basePlans.map((basePlan) => ({ ...basePlan, ...(incomingPlans.find((p) => p.id === basePlan.id) || {}) }));
+  app.sales.plans = mergedPlans.length ? mergedPlans : basePlans;
+  if (!app.sales.plans.some((p) => p.id === app.sales.activePlanId)) app.sales.activePlanId = "fiber-1g";
+
+  const baseAddons = base.sales.addons || [];
+  const incomingAddons = Array.isArray(app.sales.addons) ? app.sales.addons : [];
+  app.sales.addons = baseAddons.map((baseAddon) => ({ ...baseAddon, ...(incomingAddons.find((a) => a.id === baseAddon.id) || {}) }));
+  app.sales.selectedAddonIds = Array.isArray(app.sales.selectedAddonIds) ? app.sales.selectedAddonIds.filter((id) => app.sales.addons.some((a) => a.id === id)) : ["modem"];
+  if (!Object.prototype.hasOwnProperty.call(app.sales, "mastercardPromo")) app.sales.mastercardPromo = false;
+  app.sales.youtubeChannels = Array.isArray(app.sales.youtubeChannels) ? app.sales.youtubeChannels : base.sales.youtubeChannels;
   app.sales.fiberPoints = Array.isArray(app.sales.fiberPoints) ? app.sales.fiberPoints : base.sales.fiberPoints;
   app.options = { ...base.options, ...(incoming.options && typeof incoming.options === "object" ? incoming.options : {}) };
 
@@ -1406,7 +1418,21 @@ function getSalesMath(sales) {
   const ourTotal = Number(activePlan.price || 0) + addonTotal;
   const current = Number(sales.currentBill || 0);
   const monthlySave = current - ourTotal;
-  return { activePlan, selectedAddons, addonTotal, ourTotal, current, monthlySave, yearlySave: monthlySave * 12, threeYearSave: monthlySave * 36 };
+  const giftCard = sales.mastercardPromo ? 100 : 0;
+  const currentFiveMonth = current * 5;
+  const frontierFiveMonthBeforePromo = ourTotal * 5;
+  const frontierFiveMonth = Math.max(0, frontierFiveMonthBeforePromo - giftCard);
+  const fiveMonthSave = currentFiveMonth - frontierFiveMonth;
+  const effectiveMonthly = frontierFiveMonth / 5;
+  const monthBreakdown = [1, 2, 3, 4, 5].map((month) => {
+    let giftApplied = 0;
+    if (sales.mastercardPromo && month >= 4) {
+      const alreadyApplied = month === 4 ? 0 : Math.min(100, ourTotal);
+      giftApplied = Math.min(100 - alreadyApplied, ourTotal);
+    }
+    return { month, bill: ourTotal, giftApplied, due: Math.max(0, ourTotal - giftApplied) };
+  });
+  return { activePlan, selectedAddons, addonTotal, ourTotal, current, monthlySave, yearlySave: monthlySave * 12, threeYearSave: monthlySave * 36, giftCard, currentFiveMonth, frontierFiveMonthBeforePromo, frontierFiveMonth, fiveMonthSave, effectiveMonthly, monthBreakdown };
 }
 
 function SalesDoorControls({ sales, patchSales }) {
@@ -1465,7 +1491,7 @@ function SalesFlow({ sales, patchSales }) {
       {step === "fiber" && <FiberExplainer sales={sales} goNext={() => setStep("bill")} />}
       {step === "bill" && <BillCompare sales={sales} patchSales={patchSales} math={math} goNext={() => setStep("plans")} />}
       {step === "plans" && <PlanChooser sales={sales} patchSales={patchSales} math={math} goNext={() => setStep("total")} />}
-      {step === "total" && <SavingsSummary math={math} goBack={() => setStep("plans")} />}
+      {step === "total" && <SavingsSummary sales={sales} patchSales={patchSales} math={math} goBack={() => setStep("plans")} />}
     </div>
   );
 }
@@ -1540,13 +1566,24 @@ function PlanChooser({ sales, patchSales, math, goNext }) {
           return <button key={addon.id} onClick={() => toggleAddon(addon.id)} className={`rounded-2xl px-4 py-4 text-left font-black ring-1 ${active ? "bg-red-700 text-white ring-red-400" : "bg-black/30 text-white/75 ring-white/10"}`}>{active ? "✓ " : "+ "}{addon.name}<span className="block text-sm opacity-70">{money(addon.price)}/mo</span></button>;
         })}
       </div>
+      {(sales.youtubeChannels || []).length ? (
+        <div className="mt-4 rounded-3xl bg-black/30 p-4 ring-1 ring-white/10">
+          <p className="text-xs font-black uppercase tracking-widest text-[#f5c542]/70">YouTube TV includes live channels like</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {(sales.youtubeChannels || []).map((channel) => (
+              <span key={channel} className="rounded-xl bg-white px-3 py-2 text-xs font-black text-black">{channel}</span>
+            ))}
+          </div>
+        </div>
+      ) : null}
       <button onClick={goNext} className="mt-5 rounded-2xl bg-[#f5c542] px-5 py-4 text-base font-black text-black">Show savings</button>
     </Panel>
   );
 }
 
-function SavingsSummary({ math, goBack }) {
+function SavingsSummary({ sales, patchSales, math, goBack }) {
   const saving = math.monthlySave >= 0;
+  const fiveSaving = math.fiveMonthSave >= 0;
   return (
     <Panel>
       <div className="rounded-[2rem] bg-black/35 p-5 ring-1 ring-white/10">
@@ -1557,6 +1594,51 @@ function SavingsSummary({ math, goBack }) {
           <Stat label="With us" value={`${money(math.ourTotal)}/mo`} gold />
           <Stat label={saving ? "Monthly savings" : "Monthly difference"} value={money(Math.abs(math.monthlySave))} pink={!saving} gold={saving} />
         </div>
+
+        <button
+          type="button"
+          onClick={() => patchSales({ mastercardPromo: !sales.mastercardPromo })}
+          className={`mt-4 flex w-full items-center justify-between rounded-2xl p-4 text-left ring-2 ${sales.mastercardPromo ? "bg-[#f5c542] text-black ring-[#f5c542]" : "bg-black/40 text-white ring-white/10"}`}
+        >
+          <span>
+            <span className="block text-xs font-black uppercase tracking-widest opacity-60">Promo</span>
+            <span className="block text-xl font-black">$100 Mastercard after 90 days</span>
+          </span>
+          <span className={`flex h-8 w-8 items-center justify-center rounded-lg border-2 text-lg font-black ${sales.mastercardPromo ? "border-black bg-black text-[#f5c542]" : "border-white/35"}`}>{sales.mastercardPromo ? "✓" : ""}</span>
+        </button>
+
+        <div className="mt-4 grid gap-3 lg:grid-cols-[.9fr_1.1fr]">
+          <div className="rounded-3xl bg-white p-5 text-black">
+            <p className="text-sm font-black uppercase opacity-50">First 5 months</p>
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              <div className="rounded-2xl bg-black/5 p-4">
+                <p className="text-xs font-black uppercase opacity-50">Current company</p>
+                <p className="text-4xl font-black tracking-[-0.05em]">{money(math.currentFiveMonth)}</p>
+              </div>
+              <div className="rounded-2xl bg-[#f5c542] p-4">
+                <p className="text-xs font-black uppercase opacity-60">With us</p>
+                <p className="text-4xl font-black tracking-[-0.05em]">{money(math.frontierFiveMonth)}</p>
+              </div>
+            </div>
+            <p className="mt-4 text-2xl font-black">{fiveSaving ? "First 5 month savings" : "First 5 month difference"}: {money(Math.abs(math.fiveMonthSave))}</p>
+            {sales.mastercardPromo ? <p className="mt-1 text-sm font-black opacity-60">Includes the $100 Mastercard applied across months 4 and 5.</p> : <p className="mt-1 text-sm font-black opacity-60">Tap the promo box above to show the Mastercard version.</p>}
+          </div>
+
+          <div className="rounded-3xl bg-black/35 p-5 ring-1 ring-white/10">
+            <p className="text-sm font-black uppercase text-white/45">Month-by-month view</p>
+            <div className="mt-3 grid gap-2 sm:grid-cols-5">
+              {math.monthBreakdown.map((m) => (
+                <div key={m.month} className="rounded-2xl bg-white/5 p-3 text-center">
+                  <p className="text-xs font-black uppercase text-white/40">Month {m.month}</p>
+                  <p className="text-2xl font-black text-white">{money(m.due)}</p>
+                  {m.giftApplied > 0 ? <p className="text-xs font-black text-[#f5c542]">-{money(m.giftApplied)} card</p> : <p className="text-xs font-black text-white/35">normal bill</p>}
+                </div>
+              ))}
+            </div>
+            <p className="mt-4 text-lg font-black text-[#f5c542]">Effective first 5 month cost: {money(math.effectiveMonthly)}/mo</p>
+          </div>
+        </div>
+
         <div className="mt-4 grid gap-3 md:grid-cols-2">
           <div className="rounded-3xl bg-[#f5c542] p-5 text-black"><p className="text-sm font-black uppercase opacity-60">1 year</p><p className="text-5xl font-black tracking-[-0.06em]">{money(Math.abs(math.yearlySave))}</p></div>
           <div className="rounded-3xl bg-red-700 p-5 text-white"><p className="text-sm font-black uppercase opacity-70">3 years</p><p className="text-5xl font-black tracking-[-0.06em]">{money(Math.abs(math.threeYearSave))}</p></div>

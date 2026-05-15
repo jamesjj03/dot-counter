@@ -1,0 +1,12 @@
+Patched app/sales/page.jsx.
+
+Fixes:
+- Rebuilt Monthly add-ons UI so it is uniform and clean.
+- YouTube TV is now a proper add-on card with channel chips.
+- Mastercard is now a small checkbox-style reward box, unchecked by default.
+- First 5-month math is now a polished card in the sidebar, not stacked loose text.
+- Removed 100 Mbps defaults and AT&T/Kinetic language from the quote flow.
+- Bumped local/cloud settings key to fiber_v4 so old saved settings do not override defaults.
+
+Run npm install, then npm run dev.
+If the old version still appears, hard-refresh or clear site data for the app.

@@ -1,0 +1,19 @@
+Fiber quote builder patch applied.
+
+Main changed file:
+- app/sales/page.jsx
+
+What changed:
+- Removed 100 Mbps plan from /sales quote builder defaults.
+- Plans now default to 300 Mbps $34.99, 1 Gig $39.99, 2 Gig $59.99, and 2 Gig Max $79.99.
+- Standard modem rental is $10.99 and defaulted on.
+- Added YouTube TV at $82.99/month with channel chips.
+- Added unchecked $100 Mastercard after 90 days toggle.
+- Added first 5-month savings math, month-by-month promo breakdown, and effective first 5-month average.
+- Bumped quote settings keys to v3 so old saved local/cloud settings are less likely to override the new defaults.
+
+After replacing files, run:
+npm install
+npm run dev
+
+If your browser still shows old pricing, hard refresh or clear site data for the app.
