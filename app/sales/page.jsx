@@ -8,8 +8,8 @@ const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const supabase = SUPABASE_URL && SUPABASE_ANON_KEY ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 
 const CLOUD_TABLE = "app_state";
-const CLOUD_ID = "gff_os_quote_settings_kinetic_v5";
-const LOCAL_KEY = "gff_os_quote_settings_kinetic_v5";
+const CLOUD_ID = "gff_os_quote_settings_kinetic_v6";
+const LOCAL_KEY = "gff_os_quote_settings_kinetic_v6";
 const PIN = "6969";
 
 const DEFAULT_SETTINGS = {
@@ -286,23 +286,24 @@ export default function GFFQuoteBuilder() {
             <h1>{settings.title}</h1>
             <span>{settings.subline}</span>
           </div>
-          <div className="monthly-card">
+          <div className="monthly-card monthly-hero-compare">
             <small>Monthly comparison</small>
-            <div className="monthly-mini-grid">
-              <div>
-                <span>Their guy</span>
+            <div className="monthly-side-by-side">
+              <div className="provider-box">
+                <span>Current provider</span>
                 <strong>{money(math.current)}</strong>
+                <em>What they pay now</em>
               </div>
-              <div>
-                <span>With us</span>
+              <div className="provider-box kinetic-box">
+                <span>Kinetic</span>
                 <strong>{money(math.monthly)}</strong>
-              </div>
-              <div className={math.monthlySavings >= 0 ? "mini-save good-bg" : "mini-save bad-bg"}>
-                <span>Monthly savings</span>
-                <strong>{money(math.monthlySavings)}</strong>
+                <em>{activePlan.name}{modemSelected ? ` + modem` : ""}{youtubeSelected ? ` + TV` : ""}</em>
               </div>
             </div>
-            <em>{activePlan.name}{modemSelected ? ` + modem` : ""}{youtubeSelected ? ` + YouTube TV` : ""}</em>
+            <div className={math.monthlySavings >= 0 ? "hero-save good-bg" : "hero-save bad-bg"}>
+              <span>Estimated monthly savings</span>
+              <strong>{money(math.monthlySavings)}</strong>
+            </div>
           </div>
         </div>
       </section>
@@ -409,14 +410,36 @@ export default function GFFQuoteBuilder() {
             </div>
           </section>
 
-          <div className="comparison monthly-clarity">
-            <div className="their-guy"><span>They pay now</span><strong>{money(math.current)}</strong></div>
-            <div className="our-total"><span>They pay with us</span><strong>{money(math.monthly)}</strong></div>
-            <div className={math.monthlySavings >= 0 ? "save-line good-line" : "save-line bad-line"}><span>Monthly savings</span><strong>{money(math.monthlySavings)}</strong></div>
-            <div className="detail"><span>{activePlan.name}</span><strong>{money(math.base)}</strong></div>
-            {settings.modem.enabled && modemSelected && <div className="detail"><span>Modem rental</span><strong>+{money(math.modem)}</strong></div>}
-            {settings.youtubeTv.enabled && youtubeSelected && <div className="detail"><span>YouTube TV</span><strong>+{money(math.youtube)}</strong></div>}
-          </div>
+          <section className="monthly-feature-card">
+            <div className="feature-title">
+              <span>Monthly comparison</span>
+              <strong>What changes today</strong>
+            </div>
+
+            <div className="side-boxes">
+              <div className="side-box current-box">
+                <span>Current provider</span>
+                <strong>{money(math.current)}</strong>
+                <em>Current monthly bill</em>
+              </div>
+              <div className="side-box kinetic-box-light">
+                <span>Kinetic</span>
+                <strong>{money(math.monthly)}</strong>
+                <em>Estimated monthly</em>
+              </div>
+            </div>
+
+            <div className={math.monthlySavings >= 0 ? "main-save-box good-line" : "main-save-box bad-line"}>
+              <span>Estimated monthly savings</span>
+              <strong>{money(math.monthlySavings)}</strong>
+            </div>
+
+            <div className="price-breakdown">
+              <div><span>{activePlan.name}</span><strong>{money(math.base)}</strong></div>
+              {settings.modem.enabled && modemSelected && <div><span>Modem rental</span><strong>+{money(math.modem)}</strong></div>}
+              {settings.youtubeTv.enabled && youtubeSelected && <div><span>YouTube TV</span><strong>+{money(math.youtube)}</strong></div>}
+            </div>
+          </section>
 
           <button className="reset-button" onClick={resetQuote}>Reset quote</button>
           <p className="disclaimer">{settings.disclaimer}</p>
@@ -679,6 +702,44 @@ const css = `
   .comparison.monthly-clarity .detail{background:#fff;color:#02002f;padding-top:9px;padding-bottom:9px}
   .comparison.monthly-clarity .detail span{font-size:13px}
 
+
+  .monthly-hero-compare{text-align:left}
+  .monthly-side-by-side{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
+  .provider-box{border-radius:18px;background:rgba(255,255,255,.12);padding:13px}
+  .provider-box span{display:block;color:#dbe3ef;font-size:10px;font-weight:1000;text-transform:uppercase;letter-spacing:.12em}
+  .provider-box strong{display:block;color:#fff;font-size:34px;letter-spacing:-.07em;line-height:1;margin-top:4px}
+  .provider-box em{display:block;color:#dbe3ef;font-size:11px;font-style:normal;font-weight:850;margin-top:4px}
+  .monthly-side-by-side .kinetic-box{background:#dfff00}
+  .monthly-side-by-side .kinetic-box span,.monthly-side-by-side .kinetic-box strong,.monthly-side-by-side .kinetic-box em{color:#02002f}
+  .hero-save{margin-top:10px;border-radius:18px;padding:13px}
+  .hero-save span{display:block;font-size:11px;font-weight:1000;text-transform:uppercase;letter-spacing:.12em}
+  .hero-save strong{display:block;font-size:38px;letter-spacing:-.08em;line-height:1}
+  .hero-save.good-bg{background:#169b62;color:#fff}
+  .hero-save.bad-bg{background:#fee2e2;color:#991b1b}
+
+  .monthly-feature-card{margin-top:14px;border-radius:24px;background:#f5f7f1;border:1px solid rgba(2,0,47,.08);padding:14px}
+  .feature-title{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-bottom:10px}
+  .feature-title span{display:block;color:#169b62;font-size:11px;font-weight:1000;text-transform:uppercase;letter-spacing:.12em}
+  .feature-title strong{display:block;color:#02002f;font-size:20px;letter-spacing:-.04em}
+  .side-boxes{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .side-box{border-radius:18px;padding:14px;border:1px solid rgba(2,0,47,.08)}
+  .current-box{background:#fff}
+  .kinetic-box-light{background:#02002f;color:#fff}
+  .side-box span{display:block;color:#4b5563;font-size:11px;font-weight:1000;text-transform:uppercase;letter-spacing:.11em}
+  .kinetic-box-light span{color:#dfff00}
+  .side-box strong{display:block;font-size:34px;letter-spacing:-.07em;line-height:1;margin-top:5px}
+  .side-box em{display:block;margin-top:6px;color:#4b5563;font-size:12px;font-style:normal;font-weight:800}
+  .kinetic-box-light em{color:#dbe3ef}
+  .main-save-box{margin-top:10px;border-radius:18px;padding:14px;text-align:center;border:2px solid #dfff00}
+  .main-save-box span{display:block;font-size:11px;font-weight:1000;text-transform:uppercase;letter-spacing:.12em}
+  .main-save-box strong{display:block;font-size:42px;letter-spacing:-.08em;line-height:1;margin-top:4px}
+  .main-save-box.good-line{background:#f9ffe5;color:#169b62}
+  .main-save-box.bad-line{background:#fee2e2;color:#991b1b;border-color:#fecaca}
+  .price-breakdown{display:grid;gap:7px;margin-top:10px}
+  .price-breakdown div{display:flex;justify-content:space-between;gap:10px;border-radius:13px;background:#fff;padding:10px}
+  .price-breakdown span{color:#4b5563;font-weight:850}
+  .price-breakdown strong{font-weight:1000}
+
   @media(max-width:1120px){
     .quote-grid{grid-template-columns:1fr}
     .summary-card{position:relative;top:auto}
@@ -698,6 +759,9 @@ const css = `
     .big-save strong{font-size:52px}
     .brand-row{flex-wrap:wrap}
     .summary-row-pair{grid-template-columns:1fr}
+
+    .monthly-side-by-side,.side-boxes{grid-template-columns:1fr}
+
     .month-strip{grid-template-columns:repeat(5,minmax(62px,1fr));overflow-x:auto}
     .reward-box{max-width:none}
     .admin-login{flex-wrap:wrap}

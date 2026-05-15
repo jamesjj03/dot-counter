@@ -1,0 +1,8 @@
+Patched app/sales/page.jsx.
+
+Fixes:
+- Removed customer-facing 'their guy' wording.
+- Monthly comparison is now a primary side-by-side feature.
+- Hero card shows Current provider vs Kinetic plus estimated monthly savings.
+- Sidebar has a larger customer-facing monthly comparison card with side-by-side boxes and a clear savings result.
+- Settings key bumped to kinetic_v6 to reduce stale local/cloud override issues.
