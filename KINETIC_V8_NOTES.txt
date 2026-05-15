@@ -1,0 +1,1 @@
+Removed the top monthly comparison card. Added Kinetic green styling and polished first-5-month comparison UI. No fake logo. Settings key bumped to kinetic_v8.

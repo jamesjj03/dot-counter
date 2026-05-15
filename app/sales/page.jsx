@@ -8,8 +8,8 @@ const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const supabase = SUPABASE_URL && SUPABASE_ANON_KEY ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 
 const CLOUD_TABLE = "app_state";
-const CLOUD_ID = "gff_os_quote_settings_kinetic_v7";
-const LOCAL_KEY = "gff_os_quote_settings_kinetic_v7";
+const CLOUD_ID = "gff_os_quote_settings_kinetic_v8";
+const LOCAL_KEY = "gff_os_quote_settings_kinetic_v8";
 const PIN = "6969";
 
 const DEFAULT_SETTINGS = {
@@ -277,7 +277,7 @@ export default function GFFQuoteBuilder() {
       <section className="quote-hero">
         <div className="brand-row">
           <button className="back-button" onClick={() => { if (typeof window !== "undefined") window.location.href = "/"; }}>← GFF Turf</button>
-          <div className="frontier-mark">Kinetic<span>fiber quote</span></div>
+          <div className="kinetic-wordmark">Kinetic <span>fiber quote</span></div>
           <span className="dealer-pill">Authorized Kinetic quote helper</span>
         </div>
         <div className="hero-copy">
@@ -285,25 +285,6 @@ export default function GFFQuoteBuilder() {
             <p>{settings.eyebrow}</p>
             <h1>{settings.title}</h1>
             <span>{settings.subline}</span>
-          </div>
-          <div className="monthly-card monthly-hero-compare">
-            <small>Monthly comparison</small>
-            <div className="monthly-side-by-side">
-              <div className="provider-box">
-                <span>Current provider</span>
-                <strong>{money(math.current)}</strong>
-                <em>What they pay now</em>
-              </div>
-              <div className="provider-box kinetic-box">
-                <span>Kinetic</span>
-                <strong>{money(math.monthly)}</strong>
-                <em>{activePlan.name}{modemSelected ? ` + modem` : ""}{youtubeSelected ? ` + TV` : ""}</em>
-              </div>
-            </div>
-            <div className={math.monthlySavings >= 0 ? "hero-save good-bg" : "hero-save bad-bg"}>
-              <span>Estimated monthly savings</span>
-              <strong>{money(math.monthlySavings)}</strong>
-            </div>
           </div>
         </div>
       </section>
@@ -385,37 +366,41 @@ export default function GFFQuoteBuilder() {
 
           <section className="five-month-card five-month-feature">
             <div className="five-feature-head">
-              <span>First 5 months</span>
-              <strong>{wholeMoney(math.firstFiveSavings)} saved</strong>
-              <p>Compare what the customer keeps paying now against what the first five months look like with Kinetic.</p>
+              <div>
+                <span>First 5 months comparison</span>
+                <strong>{wholeMoney(math.firstFiveSavings)} saved</strong>
+              </div>
+              <p>Shows the customer what five months costs if they stay where they are versus switching to Kinetic.</p>
             </div>
 
-            <div className="five-side-by-side">
-              <div className="five-side current-five">
+            <div className="five-compare-row">
+              <div className="five-panel current-five">
                 <span>Current provider</span>
                 <strong>{money(math.firstFiveCurrent)}</strong>
-                <em>{money(math.current)}/mo × 5 months</em>
+                <em>Total for first 5 months</em>
               </div>
 
-              <div className="five-side kinetic-five">
+              <div className="versus-dot">VS</div>
+
+              <div className="five-panel kinetic-five">
                 <span>Kinetic</span>
                 <strong>{money(math.firstFiveFrontier)}</strong>
                 <em>
-                  {money(math.monthly)}/mo × 5
-                  {math.reward > 0 ? ` minus ${money(math.reward)} Mastercard` : ""}
+                  Total for first 5 months
+                  {math.reward > 0 ? ` after ${money(math.reward)} Mastercard` : ""}
                 </em>
               </div>
-            </div>
 
-            <div className={math.firstFiveSavings >= 0 ? "five-savings-punch good-five" : "five-savings-punch bad-five"}>
-              <span>First 5-month savings</span>
-              <strong>{money(math.firstFiveSavings)}</strong>
-              <em>Effective average: {money(math.effectiveFiveMonthAverage)}/mo</em>
+              <div className={math.firstFiveSavings >= 0 ? "five-panel savings-five good-five" : "five-panel savings-five bad-five"}>
+                <span>You save</span>
+                <strong>{money(math.firstFiveSavings)}</strong>
+                <em>in the first 5 months</em>
+              </div>
             </div>
 
             {math.reward > 0 && (
               <div className="mastercard-note">
-                <span>$100 Mastercard applied after 90 days</span>
+                <span>$100 Mastercard after 90 days</span>
                 <strong>-{money(math.reward)}</strong>
               </div>
             )}
@@ -423,11 +408,15 @@ export default function GFFQuoteBuilder() {
             <div className="month-strip clean-month-strip">
               {math.monthRows.map((row) => (
                 <div key={row.month}>
-                  <span>Month {row.month}</span>
+                  <span>M{row.month}</span>
                   <strong>{money(row.outOfPocket)}</strong>
-                  {row.rewardApplied > 0 && <em>{money(row.rewardApplied)} card applied</em>}
+                  {row.rewardApplied > 0 && <em>{money(row.rewardApplied)} card</em>}
                 </div>
               ))}
+              <div className="effective-box">
+                <span>Effective avg</span>
+                <strong>{money(math.effectiveFiveMonthAverage)}<small>/mo</small></strong>
+              </div>
             </div>
           </section>
 
@@ -578,119 +567,119 @@ function AdminEditor({ settings, setSettings, saveCloud, saveStatus }) {
 }
 
 const css = `
-  :root{background:#f5f7f1;color:#02002f}
+  :root{background:#f6faf7;color:#061728}
   *{box-sizing:border-box}
   button,input{font:inherit}
   button{cursor:pointer;border:0}
   input{border:0;outline:0}
-  .quote-shell{min-height:100vh;background:radial-gradient(circle at top left,rgba(215,255,0,.24),transparent 28%),linear-gradient(180deg,#f7faf2 0%,#ffffff 48%,#eef4e9 100%);padding:18px;color:#02002f;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+  .quote-shell{min-height:100vh;background:radial-gradient(circle at top left,rgba(215,255,0,.24),transparent 28%),linear-gradient(180deg,#f7faf2 0%,#ffffff 48%,#eef4e9 100%);padding:18px;color:#061728;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
   .quote-loading{display:grid;place-items:center;font-size:34px;font-weight:1000}
   .quote-hero,.card,.summary-card,.admin-card{border:1px solid rgba(2,0,47,.10);background:#fff;box-shadow:0 18px 48px rgba(2,0,47,.12);border-radius:28px}
-  .quote-hero{padding:20px;margin:0 auto 18px;max-width:1340px;border-top:12px solid #dfff00}
+  .quote-hero{padding:20px;margin:0 auto 18px;max-width:1340px;border-top:12px solid #18c46d}
   .brand-row{display:flex;align-items:center;justify-content:space-between;gap:12px}
-  .back-button{border-radius:999px;background:#02002f;color:#fff;padding:11px 16px;font-weight:1000}
-  .frontier-mark{font-size:36px;line-height:.85;font-weight:1000;letter-spacing:-.07em;color:#d4111e}
-  .frontier-mark span{display:block;color:#02002f;font-size:13px;letter-spacing:.18em;text-transform:uppercase}
-  .dealer-pill{border-radius:999px;background:#dfff00;color:#02002f;padding:10px 14px;font-size:12px;font-weight:1000;text-transform:uppercase;letter-spacing:.12em}
-  .hero-copy{display:grid;grid-template-columns:1fr auto;gap:24px;align-items:end;margin-top:18px}
-  .hero-copy p{margin:0 0 8px;color:#169b62;font-size:12px;font-weight:1000;text-transform:uppercase;letter-spacing:.16em}
-  .hero-copy h1{font-size:clamp(44px,6vw,78px);line-height:.9;margin:0;letter-spacing:-.08em;color:#02002f}
+  .back-button{border-radius:999px;background:#061728;color:#fff;padding:11px 16px;font-weight:1000}
+  .frontier-mark{font-size:36px;line-height:.85;font-weight:1000;letter-spacing:-.07em;color:#007a3d}
+  .frontier-mark span{display:block;color:#061728;font-size:13px;letter-spacing:.18em;text-transform:uppercase}
+  .dealer-pill{border-radius:999px;background:#18c46d;color:#061728;padding:10px 14px;font-size:12px;font-weight:1000;text-transform:uppercase;letter-spacing:.12em}
+  .hero-copy{display:grid;grid-template-columns:1fr;gap:16px;align-items:end;margin-top:18px;max-width:920px}
+  .hero-copy p{margin:0 0 8px;color:#007a3d;font-size:12px;font-weight:1000;text-transform:uppercase;letter-spacing:.16em}
+  .hero-copy h1{font-size:clamp(44px,6vw,78px);line-height:.9;margin:0;letter-spacing:-.08em;color:#061728}
   .hero-copy span{display:block;margin-top:10px;color:#4b5563;font-size:17px;font-weight:850}
-  .monthly-card{border-radius:26px;background:#02002f;color:#fff;padding:20px 24px;min-width:310px;text-align:right}
-  .monthly-card small{display:block;color:#dfff00;text-transform:uppercase;font-size:11px;font-weight:1000;letter-spacing:.16em}
+  .monthly-card{border-radius:26px;background:#061728;color:#fff;padding:20px 24px;min-width:310px;text-align:right}
+  .monthly-card small{display:block;color:#18c46d;text-transform:uppercase;font-size:11px;font-weight:1000;letter-spacing:.16em}
   .monthly-card strong{display:block;font-size:50px;letter-spacing:-.08em}
   .monthly-card em{display:block;color:#dbe3ef;font-size:12px;font-style:normal;font-weight:850}
   .quote-grid{display:grid;grid-template-columns:minmax(0,1fr) 450px;gap:18px;max-width:1340px;margin:0 auto}
   .left-stack{display:grid;gap:18px}
   .card,.summary-card,.admin-card{padding:18px}
   .card-title{display:flex;align-items:center;gap:12px;margin-bottom:16px}
-  .card-title span{display:grid;place-items:center;min-width:38px;height:34px;border-radius:999px;background:#dfff00;color:#02002f;font-weight:1000}
+  .card-title span{display:grid;place-items:center;min-width:38px;height:34px;border-radius:999px;background:#18c46d;color:#061728;font-weight:1000}
   .card-title h2{margin:0;font-size:24px;letter-spacing:-.04em}
-  .bill-row label{display:block;color:#169b62;font-size:13px;font-weight:1000;text-transform:uppercase;letter-spacing:.12em}
-  .money-input{margin-top:8px;display:flex;align-items:center;gap:8px;border-radius:24px;background:#f3f6ef;border:2px solid #dfff00;padding:10px 18px}
-  .money-input span{font-size:42px;font-weight:1000;color:#169b62}
-  .money-input input{width:100%;background:transparent;color:#02002f;font-size:58px;font-weight:1000;letter-spacing:-.08em}
+  .bill-row label{display:block;color:#007a3d;font-size:13px;font-weight:1000;text-transform:uppercase;letter-spacing:.12em}
+  .money-input{margin-top:8px;display:flex;align-items:center;gap:8px;border-radius:24px;background:#f3faf5;border:2px solid #18c46d;padding:10px 18px}
+  .money-input span{font-size:42px;font-weight:1000;color:#007a3d}
+  .money-input input{width:100%;background:transparent;color:#061728;font-size:58px;font-weight:1000;letter-spacing:-.08em}
   .plan-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px}
-  .plan{position:relative;overflow:hidden;text-align:left;border-radius:24px;background:#fff;border:1px solid rgba(2,0,47,.14);color:#02002f;padding:18px;min-height:240px;transition:.18s ease}
-  .plan.featured{border-color:#dfff00}
-  .plan.active{background:#02002f;color:#fff;border-color:#02002f;box-shadow:0 18px 45px rgba(2,0,47,.22);transform:translateY(-2px)}
-  .best-strip{position:absolute;inset:0 0 auto 0;background:#dfff00;color:#02002f;text-align:center;font-size:11px;font-weight:1000;text-transform:uppercase;letter-spacing:.1em;padding:6px}
+  .plan{position:relative;overflow:hidden;text-align:left;border-radius:24px;background:#fff;border:1px solid rgba(2,0,47,.14);color:#061728;padding:18px;min-height:240px;transition:.18s ease}
+  .plan.featured{border-color:#18c46d}
+  .plan.active{background:#061728;color:#fff;border-color:#061728;box-shadow:0 18px 45px rgba(2,0,47,.22);transform:translateY(-2px)}
+  .best-strip{position:absolute;inset:0 0 auto 0;background:#18c46d;color:#061728;text-align:center;font-size:11px;font-weight:1000;text-transform:uppercase;letter-spacing:.1em;padding:6px}
   .plan-head{display:grid;grid-template-columns:1fr;gap:8px;align-items:start;margin-top:12px}
-  .plan strong{display:block;color:#169b62;font-size:24px;letter-spacing:-.04em}
-  .plan.active strong{color:#dfff00}
+  .plan strong{display:block;color:#007a3d;font-size:24px;letter-spacing:-.04em}
+  .plan.active strong{color:#18c46d}
   .plan em{display:block;margin-top:3px;color:inherit;font-style:normal;font-weight:1000}
   .plan b{display:block;font-size:38px;letter-spacing:-.07em;line-height:1}
   .plan b small{font-size:12px;letter-spacing:0}
   .plan p{margin:18px 0 0;min-height:56px;color:inherit;font-size:14px;font-weight:850;line-height:1.35}
-  .plan-base{margin-top:12px;border-radius:999px;background:#f2f3f0;color:#02002f;padding:8px 10px;font-size:11px;font-weight:1000}
+  .plan-base{margin-top:12px;border-radius:999px;background:#f2f3f0;color:#061728;padding:8px 10px;font-size:11px;font-weight:1000}
   .plan.active .plan-base{background:rgba(255,255,255,.14);color:#fff}
 
   .addon-grid{display:grid;grid-template-columns:1fr;gap:12px}
-  .addon-card,.reward-box{width:100%;text-align:left;border-radius:22px;background:#f5f7f1;color:#02002f;border:2px solid rgba(2,0,47,.08);padding:15px;transition:.18s ease}
-  .addon-card.active,.reward-box.active{background:#f9ffe5;border-color:#dfff00;box-shadow:0 10px 30px rgba(2,0,47,.08)}
+  .addon-card,.reward-box{width:100%;text-align:left;border-radius:22px;background:#f6faf7;color:#061728;border:2px solid rgba(2,0,47,.08);padding:15px;transition:.18s ease}
+  .addon-card.active,.reward-box.active{background:#ecfff4;border-color:#18c46d;box-shadow:0 10px 30px rgba(2,0,47,.08)}
   .addon-top{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:12px}
-  .addon-check,.mini-check{width:28px;height:28px;border-radius:8px;display:grid;place-items:center;border:2px solid rgba(2,0,47,.18);background:#fff;color:#02002f;font-weight:1000}
-  .addon-card.active .addon-check,.reward-box.active .mini-check{background:#dfff00;border-color:#dfff00}
+  .addon-check,.mini-check{width:28px;height:28px;border-radius:8px;display:grid;place-items:center;border:2px solid rgba(2,0,47,.18);background:#fff;color:#061728;font-weight:1000}
+  .addon-card.active .addon-check,.reward-box.active .mini-check{background:#18c46d;border-color:#18c46d}
   .addon-top strong,.reward-box strong{display:block;font-size:18px;font-weight:1000}
   .addon-top p,.reward-box p{margin:4px 0 0;color:#4b5563;font-weight:750;font-size:13px;line-height:1.35}
-  .addon-top b,.reward-box b{justify-self:end;color:#169b62;font-size:18px;font-weight:1000;white-space:nowrap}
+  .addon-top b,.reward-box b{justify-self:end;color:#007a3d;font-size:18px;font-weight:1000;white-space:nowrap}
   .channel-grid{display:flex;flex-wrap:wrap;gap:7px;margin:12px 0 0 40px}
-  .channel-grid span{border-radius:999px;background:#fff;border:1px solid rgba(2,0,47,.10);padding:7px 10px;font-size:12px;font-weight:1000;color:#02002f}
+  .channel-grid span{border-radius:999px;background:#fff;border:1px solid rgba(2,0,47,.10);padding:7px 10px;font-size:12px;font-weight:1000;color:#061728}
   .reward-box{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:12px;max-width:520px}
   .reward-box b{font-size:20px}
 
-  .summary-card{position:sticky;top:18px;align-self:start;background:#fff;color:#02002f;border-top:12px solid #dfff00}
-  .summary-pill{display:inline-flex;border-radius:999px;background:#02002f;color:#fff;padding:9px 12px;font-size:12px;font-weight:1000;text-transform:uppercase;letter-spacing:.12em}
-  .big-save{margin-top:18px;border-radius:24px;background:#02002f;padding:18px}
+  .summary-card{position:sticky;top:18px;align-self:start;background:#fff;color:#061728;border-top:12px solid #18c46d}
+  .summary-pill{display:inline-flex;border-radius:999px;background:#061728;color:#fff;padding:9px 12px;font-size:12px;font-weight:1000;text-transform:uppercase;letter-spacing:.12em}
+  .big-save{margin-top:18px;border-radius:24px;background:#061728;padding:18px}
   .big-save small{display:block;color:#dbe3ef;font-size:13px;font-weight:1000;text-transform:uppercase;letter-spacing:.12em}
-  .big-save strong{display:block;font-size:68px;letter-spacing:-.09em;color:#dfff00;line-height:.95}
+  .big-save strong{display:block;font-size:68px;letter-spacing:-.09em;color:#18c46d;line-height:.95}
   .summary-row-pair{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
   .year-save,.monthly-save{border-radius:18px;padding:14px}
   .year-save{background:#22a86b;color:#fff}
-  .monthly-save{background:#eef3ea;color:#02002f}
+  .monthly-save{background:#ecf6ef;color:#061728}
   .year-save span,.monthly-save span{display:block;font-size:11px;font-weight:1000;text-transform:uppercase;letter-spacing:.1em;opacity:.85}
   .year-save strong,.monthly-save strong{display:block;font-size:26px;letter-spacing:-.05em}
-  .good{color:#169b62}.bad{color:#c2410c}
+  .good{color:#007a3d}.bad{color:#c2410c}
 
-  .five-month-card{margin-top:12px;border-radius:22px;background:#f5f7f1;border:1px solid rgba(2,0,47,.08);padding:14px}
+  .five-month-card{margin-top:12px;border-radius:22px;background:#f6faf7;border:1px solid rgba(2,0,47,.08);padding:14px}
   .five-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
   .five-head span{display:block;color:#4b5563;font-size:11px;font-weight:1000;text-transform:uppercase;letter-spacing:.12em}
-  .five-head strong{display:block;color:#169b62;font-size:25px;letter-spacing:-.05em}
-  .five-head b{font-size:24px;letter-spacing:-.05em;color:#02002f;text-align:right}
+  .five-head strong{display:block;color:#007a3d;font-size:25px;letter-spacing:-.05em}
+  .five-head b{font-size:24px;letter-spacing:-.05em;color:#061728;text-align:right}
   .five-head small{display:block;font-size:11px;letter-spacing:0;color:#4b5563}
   .five-totals{display:grid;gap:7px;margin-top:12px}
   .five-totals div{display:flex;justify-content:space-between;gap:10px;border-radius:13px;background:#fff;padding:10px}
   .five-totals span{color:#4b5563;font-weight:850}
   .five-totals strong{font-weight:1000}
-  .five-totals .net{background:#02002f;color:#fff}
+  .five-totals .net{background:#061728;color:#fff}
   .five-totals .net span{color:#fff}
   .month-strip{display:grid;grid-template-columns:repeat(5,1fr);gap:7px;margin-top:10px}
   .month-strip div{border-radius:13px;background:#fff;padding:9px;text-align:center;border:1px solid rgba(2,0,47,.08)}
   .month-strip span{display:block;color:#4b5563;font-size:11px;font-weight:1000}
   .month-strip strong{display:block;font-size:15px}
-  .month-strip em{display:block;color:#169b62;font-size:10px;font-style:normal;font-weight:900}
+  .month-strip em{display:block;color:#007a3d;font-size:10px;font-style:normal;font-weight:900}
 
   .comparison{display:grid;gap:9px;margin-top:14px}
-  .comparison div{display:flex;justify-content:space-between;gap:10px;border-radius:16px;background:#f3f6ef;padding:13px}
+  .comparison div{display:flex;justify-content:space-between;gap:10px;border-radius:16px;background:#f3faf5;padding:13px}
   .comparison span{color:#4b5563;font-weight:800}
   .comparison strong{font-weight:1000}
-  .comparison .total{background:#02002f;color:#fff}
+  .comparison .total{background:#061728;color:#fff}
   .comparison .total span{color:#fff}
-  .reset-button{width:100%;margin-top:14px;border-radius:18px;background:#dfff00;color:#02002f;padding:14px;font-weight:1000}
+  .reset-button{width:100%;margin-top:14px;border-radius:18px;background:#18c46d;color:#061728;padding:14px;font-weight:1000}
   .disclaimer{color:#4b5563;font-size:12px;line-height:1.45;font-weight:700}
 
   .admin-card{max-width:1340px;margin:18px auto 0}
   .admin-login{display:flex;gap:10px;align-items:center}
-  .admin-login span{font-weight:1000;color:#02002f}
-  .admin-login input{border-radius:14px;background:#f3f6ef;color:#02002f;padding:12px;width:110px}
-  .admin-login button,.admin-head button,.mini-add,.plan-admin button,.reorder button{border-radius:14px;background:#02002f;color:#fff;padding:12px 14px;font-weight:1000}
+  .admin-login span{font-weight:1000;color:#061728}
+  .admin-login input{border-radius:14px;background:#f3faf5;color:#061728;padding:12px;width:110px}
+  .admin-login button,.admin-head button,.mini-add,.plan-admin button,.reorder button{border-radius:14px;background:#061728;color:#fff;padding:12px 14px;font-weight:1000}
   .admin-head{display:flex;gap:12px;align-items:center;justify-content:space-between}
   .admin-head h2,.admin-editor h3{margin:0}
   .admin-form{display:grid;gap:10px;margin:12px 0}
   .admin-form.two{grid-template-columns:1fr 1fr}
   .admin-form.three{grid-template-columns:repeat(3,1fr)}
   .admin-form label,.admin-checks label{color:#4b5563;font-size:12px;font-weight:1000;text-transform:uppercase;letter-spacing:.08em}
-  .admin-form input,.plan-admin input{display:block;margin-top:6px;width:100%;border-radius:14px;background:#f3f6ef;color:#02002f;padding:12px}
+  .admin-form input,.plan-admin input{display:block;margin-top:6px;width:100%;border-radius:14px;background:#f3faf5;color:#061728;padding:12px}
   .plan-admin-list{display:grid;gap:10px;margin:12px 0}
   .plan-admin{display:grid;grid-template-columns:auto 1.1fr .8fr .6fr .9fr auto auto;gap:8px;align-items:center}
   .reorder{display:flex;gap:4px}
@@ -705,22 +694,22 @@ const css = `
   .monthly-mini-grid div span{display:block;margin:0 0 4px;color:#dbe3ef;font-size:10px;font-weight:1000;text-transform:uppercase;letter-spacing:.1em}
   .monthly-mini-grid div strong{display:block;color:#fff;font-size:30px;letter-spacing:-.06em;line-height:1}
   .monthly-mini-grid .mini-save{grid-column:1 / -1}
-  .monthly-mini-grid .mini-save.good-bg{background:#dfff00}
-  .monthly-mini-grid .mini-save.good-bg span{color:#02002f}
-  .monthly-mini-grid .mini-save.good-bg strong{color:#02002f}
+  .monthly-mini-grid .mini-save.good-bg{background:#18c46d}
+  .monthly-mini-grid .mini-save.good-bg span{color:#061728}
+  .monthly-mini-grid .mini-save.good-bg strong{color:#061728}
   .monthly-mini-grid .mini-save.bad-bg{background:#fee2e2}
   .monthly-mini-grid .mini-save.bad-bg span,.monthly-mini-grid .mini-save.bad-bg strong{color:#991b1b}
-  .monthly-clarity{border-radius:22px;background:#f5f7f1;padding:10px}
+  .monthly-clarity{border-radius:22px;background:#f6faf7;padding:10px}
   .comparison.monthly-clarity div{border-radius:14px;background:#fff}
-  .comparison.monthly-clarity .their-guy{background:#eef3ea}
-  .comparison.monthly-clarity .our-total{background:#02002f;color:#fff}
+  .comparison.monthly-clarity .their-guy{background:#ecf6ef}
+  .comparison.monthly-clarity .our-total{background:#061728;color:#fff}
   .comparison.monthly-clarity .our-total span{color:#fff}
-  .comparison.monthly-clarity .save-line{border:2px solid #dfff00}
-  .comparison.monthly-clarity .good-line{background:#f9ffe5}
-  .comparison.monthly-clarity .good-line strong{color:#169b62}
+  .comparison.monthly-clarity .save-line{border:2px solid #18c46d}
+  .comparison.monthly-clarity .good-line{background:#ecfff4}
+  .comparison.monthly-clarity .good-line strong{color:#007a3d}
   .comparison.monthly-clarity .bad-line{background:#fee2e2;border-color:#fecaca}
   .comparison.monthly-clarity .bad-line strong{color:#991b1b}
-  .comparison.monthly-clarity .detail{background:#fff;color:#02002f;padding-top:9px;padding-bottom:9px}
+  .comparison.monthly-clarity .detail{background:#fff;color:#061728;padding-top:9px;padding-bottom:9px}
   .comparison.monthly-clarity .detail span{font-size:13px}
 
 
@@ -730,31 +719,31 @@ const css = `
   .provider-box span{display:block;color:#dbe3ef;font-size:10px;font-weight:1000;text-transform:uppercase;letter-spacing:.12em}
   .provider-box strong{display:block;color:#fff;font-size:34px;letter-spacing:-.07em;line-height:1;margin-top:4px}
   .provider-box em{display:block;color:#dbe3ef;font-size:11px;font-style:normal;font-weight:850;margin-top:4px}
-  .monthly-side-by-side .kinetic-box{background:#dfff00}
-  .monthly-side-by-side .kinetic-box span,.monthly-side-by-side .kinetic-box strong,.monthly-side-by-side .kinetic-box em{color:#02002f}
+  .monthly-side-by-side .kinetic-box{background:#18c46d}
+  .monthly-side-by-side .kinetic-box span,.monthly-side-by-side .kinetic-box strong,.monthly-side-by-side .kinetic-box em{color:#061728}
   .hero-save{margin-top:10px;border-radius:18px;padding:13px}
   .hero-save span{display:block;font-size:11px;font-weight:1000;text-transform:uppercase;letter-spacing:.12em}
   .hero-save strong{display:block;font-size:38px;letter-spacing:-.08em;line-height:1}
-  .hero-save.good-bg{background:#169b62;color:#fff}
+  .hero-save.good-bg{background:#007a3d;color:#fff}
   .hero-save.bad-bg{background:#fee2e2;color:#991b1b}
 
-  .monthly-feature-card{margin-top:14px;border-radius:24px;background:#f5f7f1;border:1px solid rgba(2,0,47,.08);padding:14px}
+  .monthly-feature-card{margin-top:14px;border-radius:24px;background:#f6faf7;border:1px solid rgba(2,0,47,.08);padding:14px}
   .feature-title{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-bottom:10px}
-  .feature-title span{display:block;color:#169b62;font-size:11px;font-weight:1000;text-transform:uppercase;letter-spacing:.12em}
-  .feature-title strong{display:block;color:#02002f;font-size:20px;letter-spacing:-.04em}
+  .feature-title span{display:block;color:#007a3d;font-size:11px;font-weight:1000;text-transform:uppercase;letter-spacing:.12em}
+  .feature-title strong{display:block;color:#061728;font-size:20px;letter-spacing:-.04em}
   .side-boxes{display:grid;grid-template-columns:1fr 1fr;gap:10px}
   .side-box{border-radius:18px;padding:14px;border:1px solid rgba(2,0,47,.08)}
   .current-box{background:#fff}
-  .kinetic-box-light{background:#02002f;color:#fff}
+  .kinetic-box-light{background:#061728;color:#fff}
   .side-box span{display:block;color:#4b5563;font-size:11px;font-weight:1000;text-transform:uppercase;letter-spacing:.11em}
-  .kinetic-box-light span{color:#dfff00}
+  .kinetic-box-light span{color:#18c46d}
   .side-box strong{display:block;font-size:34px;letter-spacing:-.07em;line-height:1;margin-top:5px}
   .side-box em{display:block;margin-top:6px;color:#4b5563;font-size:12px;font-style:normal;font-weight:800}
   .kinetic-box-light em{color:#dbe3ef}
-  .main-save-box{margin-top:10px;border-radius:18px;padding:14px;text-align:center;border:2px solid #dfff00}
+  .main-save-box{margin-top:10px;border-radius:18px;padding:14px;text-align:center;border:2px solid #18c46d}
   .main-save-box span{display:block;font-size:11px;font-weight:1000;text-transform:uppercase;letter-spacing:.12em}
   .main-save-box strong{display:block;font-size:42px;letter-spacing:-.08em;line-height:1;margin-top:4px}
-  .main-save-box.good-line{background:#f9ffe5;color:#169b62}
+  .main-save-box.good-line{background:#ecfff4;color:#007a3d}
   .main-save-box.bad-line{background:#fee2e2;color:#991b1b;border-color:#fecaca}
   .price-breakdown{display:grid;gap:7px;margin-top:10px}
   .price-breakdown div{display:flex;justify-content:space-between;gap:10px;border-radius:13px;background:#fff;padding:10px}
@@ -762,17 +751,17 @@ const css = `
   .price-breakdown strong{font-weight:1000}
 
 
-  .five-month-feature{background:#ffffff;border:2px solid #dfff00;box-shadow:0 16px 38px rgba(2,0,47,.10)}
+  .five-month-feature{background:#ffffff;border:2px solid #18c46d;box-shadow:0 16px 38px rgba(2,0,47,.10)}
   .five-feature-head{display:grid;gap:3px;margin-bottom:12px}
-  .five-feature-head span{color:#169b62;font-size:11px;font-weight:1000;text-transform:uppercase;letter-spacing:.14em}
-  .five-feature-head strong{color:#02002f;font-size:34px;letter-spacing:-.07em;line-height:1}
+  .five-feature-head span{color:#007a3d;font-size:11px;font-weight:1000;text-transform:uppercase;letter-spacing:.14em}
+  .five-feature-head strong{color:#061728;font-size:34px;letter-spacing:-.07em;line-height:1}
   .five-feature-head p{margin:3px 0 0;color:#4b5563;font-size:13px;font-weight:800;line-height:1.35}
   .five-side-by-side{display:grid;grid-template-columns:1fr 1fr;gap:10px}
   .five-side{border-radius:18px;padding:14px;border:1px solid rgba(2,0,47,.10)}
-  .current-five{background:#f3f6ef}
-  .kinetic-five{background:#02002f;color:#fff}
+  .current-five{background:#f3faf5}
+  .kinetic-five{background:#061728;color:#fff}
   .five-side span{display:block;color:#4b5563;font-size:11px;font-weight:1000;text-transform:uppercase;letter-spacing:.12em}
-  .kinetic-five span{color:#dfff00}
+  .kinetic-five span{color:#18c46d}
   .five-side strong{display:block;font-size:34px;letter-spacing:-.07em;line-height:1;margin-top:5px}
   .five-side em{display:block;margin-top:6px;color:#4b5563;font-size:12px;font-style:normal;font-weight:850;line-height:1.25}
   .kinetic-five em{color:#dbe3ef}
@@ -780,16 +769,72 @@ const css = `
   .five-savings-punch span{display:block;font-size:11px;font-weight:1000;text-transform:uppercase;letter-spacing:.12em}
   .five-savings-punch strong{display:block;font-size:46px;letter-spacing:-.08em;line-height:1;margin-top:2px}
   .five-savings-punch em{display:block;margin-top:5px;font-size:12px;font-style:normal;font-weight:900}
-  .good-five{background:#dfff00;color:#02002f}
+  .good-five{background:#18c46d;color:#061728}
   .bad-five{background:#fee2e2;color:#991b1b}
-  .mastercard-note{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:10px;border-radius:14px;background:#f9ffe5;border:1px solid #dfff00;padding:11px}
-  .mastercard-note span{font-size:12px;font-weight:1000;color:#02002f}
-  .mastercard-note strong{font-size:18px;font-weight:1000;color:#169b62}
+  .mastercard-note{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:10px;border-radius:14px;background:#ecfff4;border:1px solid #18c46d;padding:11px}
+  .mastercard-note span{font-size:12px;font-weight:1000;color:#061728}
+  .mastercard-note strong{font-size:18px;font-weight:1000;color:#007a3d}
   .clean-month-strip{grid-template-columns:repeat(5,1fr);margin-top:10px}
-  .clean-month-strip div{background:#f5f7f1}
+  .clean-month-strip div{background:#f6faf7}
   .clean-month-strip span{font-size:10px}
   .clean-month-strip strong{font-size:16px}
   .clean-month-strip em{font-size:9px;line-height:1.1}
+
+
+  .kinetic-wordmark{font-size:34px;line-height:1;font-weight:1000;letter-spacing:-.06em;color:#007a3d}
+  .kinetic-wordmark span{display:block;color:#061728;font-size:12px;letter-spacing:.18em;text-transform:uppercase;margin-top:2px}
+  .quote-shell{background:radial-gradient(circle at top left,rgba(0,122,61,.12),transparent 30%),linear-gradient(180deg,#fbfdfb 0%,#ffffff 48%,#f3faf5 100%)}
+  .quote-hero,.card,.summary-card,.admin-card{border:1px solid rgba(6,23,40,.09);box-shadow:0 18px 48px rgba(6,23,40,.08)}
+  .quote-hero{border-top:8px solid #007a3d}
+  .dealer-pill{background:#e8fff1;color:#007a3d;border:1px solid rgba(0,122,61,.14)}
+  .back-button{background:#061728;color:#fff}
+  .hero-copy h1{color:#061728}
+  .hero-copy p{color:#007a3d}
+  .card-title span{background:#007a3d;color:#fff}
+  .plan.active{background:#ffffff;color:#061728;border-color:#007a3d;box-shadow:0 18px 40px rgba(0,122,61,.16)}
+  .plan.active strong{color:#007a3d}
+  .plan.featured,.plan.active{border-width:2px}
+  .best-strip{background:#007a3d;color:#fff}
+  .plan-base{background:#f3faf5}
+  .plan.active .plan-base{background:#e8fff1;color:#007a3d}
+  .summary-card{border-top:8px solid #007a3d}
+  .summary-pill{background:#e8fff1;color:#007a3d;border:1px solid rgba(0,122,61,.14)}
+  .big-save{background:linear-gradient(135deg,#007a3d,#009f55)}
+  .big-save strong{color:#fff}
+  .big-save small{color:#e8fff1}
+  .reset-button{background:#007a3d;color:#fff}
+  .addon-card.active,.reward-box.active{background:#e8fff1;border-color:#007a3d}
+  .addon-card.active .addon-check,.reward-box.active .mini-check{background:#007a3d;border-color:#007a3d;color:#fff}
+
+  .five-month-feature{background:#ffffff;border:2px solid #007a3d;border-radius:24px;box-shadow:0 16px 38px rgba(0,122,61,.10);padding:14px}
+  .five-feature-head{display:flex;align-items:flex-end;justify-content:space-between;gap:14px;margin-bottom:12px}
+  .five-feature-head span{display:block;color:#007a3d;font-size:11px;font-weight:1000;text-transform:uppercase;letter-spacing:.14em}
+  .five-feature-head strong{display:block;color:#061728;font-size:34px;letter-spacing:-.07em;line-height:1}
+  .five-feature-head p{max-width:360px;margin:0;color:#4b5563;font-size:12px;font-weight:800;line-height:1.35;text-align:right}
+  .five-compare-row{display:grid;grid-template-columns:1fr auto 1fr 1fr;gap:10px;align-items:stretch}
+  .five-panel{border-radius:18px;padding:14px;border:1px solid rgba(0,122,61,.16);background:#f7fffa}
+  .five-panel span{display:block;color:#007a3d;font-size:11px;font-weight:1000;text-transform:uppercase;letter-spacing:.11em}
+  .five-panel strong{display:block;color:#061728;font-size:32px;letter-spacing:-.07em;line-height:1;margin-top:5px}
+  .five-panel em{display:block;margin-top:6px;color:#4b5563;font-size:12px;font-style:normal;font-weight:850;line-height:1.25}
+  .kinetic-five{background:#061728;border-color:#061728;color:#fff}
+  .kinetic-five span{color:#18c46d}
+  .kinetic-five strong{color:#fff}
+  .kinetic-five em{color:#dbe3ef}
+  .versus-dot{align-self:center;display:grid;place-items:center;width:42px;height:42px;border-radius:999px;background:#fff;color:#007a3d;border:1px solid rgba(0,122,61,.22);box-shadow:0 8px 22px rgba(6,23,40,.10);font-size:11px;font-weight:1000}
+  .savings-five.good-five{background:#e8fff1;border-color:#18c46d}
+  .savings-five.good-five strong{color:#007a3d}
+  .savings-five.bad-five{background:#fee2e2;border-color:#fecaca}
+  .savings-five.bad-five span,.savings-five.bad-five strong{color:#991b1b}
+  .mastercard-note{background:#f7fffa;border:1px solid rgba(0,122,61,.18)}
+  .mastercard-note span{color:#061728}
+  .mastercard-note strong{color:#007a3d}
+  .clean-month-strip{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-top:10px}
+  .clean-month-strip div{border-radius:14px;background:#fff;border:1px solid rgba(6,23,40,.08);padding:10px;text-align:center}
+  .clean-month-strip span{display:block;color:#4b5563;font-size:10px;font-weight:1000;text-transform:uppercase;letter-spacing:.08em}
+  .clean-month-strip strong{display:block;color:#007a3d;font-size:16px;letter-spacing:-.03em}
+  .clean-month-strip strong small{font-size:10px;color:#4b5563}
+  .clean-month-strip em{display:block;color:#007a3d;font-size:9px;font-style:normal;font-weight:900;line-height:1.1}
+  .effective-box{background:#e8fff1!important}
 
   @media(max-width:1120px){
     .quote-grid{grid-template-columns:1fr}
@@ -813,8 +858,14 @@ const css = `
 
     .monthly-side-by-side,.side-boxes{grid-template-columns:1fr}
 
-    .five-side-by-side{grid-template-columns:1fr}
-    .clean-month-strip{grid-template-columns:repeat(5,minmax(84px,1fr));overflow-x:auto}
+
+    .five-feature-head{display:grid;text-align:left}
+    .five-feature-head p{text-align:left;max-width:none}
+    .five-compare-row{grid-template-columns:1fr}
+    .versus-dot{justify-self:center}
+    .clean-month-strip{grid-template-columns:repeat(6,minmax(86px,1fr));overflow-x:auto}
+
+
 
 
     .month-strip{grid-template-columns:repeat(5,minmax(62px,1fr));overflow-x:auto}
