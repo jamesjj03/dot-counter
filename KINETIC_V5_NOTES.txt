@@ -1,0 +1,8 @@
+Patched app/sales/page.jsx.
+
+Fixes:
+- Restored Kinetic branding/language instead of Frontier.
+- Bumped settings key to kinetic_v5 so stale saved Frontier settings do not override defaults.
+- Hero monthly UI clearly shows: Their guy, With us, Monthly savings.
+- Sidebar monthly comparison clearly shows: They pay now, They pay with us, Monthly savings, then itemized plan/add-ons.
+- Kept the cleaned add-on card UI, YouTube TV chips, and small Mastercard checkbox box.

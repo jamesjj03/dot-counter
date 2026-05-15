@@ -8,13 +8,13 @@ const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const supabase = SUPABASE_URL && SUPABASE_ANON_KEY ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 
 const CLOUD_TABLE = "app_state";
-const CLOUD_ID = "gff_os_quote_settings_fiber_v4";
-const LOCAL_KEY = "gff_os_quote_settings_fiber_v4";
+const CLOUD_ID = "gff_os_quote_settings_kinetic_v5";
+const LOCAL_KEY = "gff_os_quote_settings_kinetic_v5";
 const PIN = "6969";
 
 const DEFAULT_SETTINGS = {
-  title: "Frontier Fiber Quote",
-  eyebrow: "Authorized fiber quote tool",
+  title: "Kinetic Fiber Quote",
+  eyebrow: "Authorized Kinetic quote tool",
   subline: "Show the real monthly, the first 5 months, and the bigger savings without the clutter.",
   primaryPlanId: "fiber-1g",
   plans: [
@@ -277,8 +277,8 @@ export default function GFFQuoteBuilder() {
       <section className="quote-hero">
         <div className="brand-row">
           <button className="back-button" onClick={() => { if (typeof window !== "undefined") window.location.href = "/"; }}>← GFF Turf</button>
-          <div className="frontier-mark">Frontier<span>fiber quote</span></div>
-          <span className="dealer-pill">Authorized dealer quote helper</span>
+          <div className="frontier-mark">Kinetic<span>fiber quote</span></div>
+          <span className="dealer-pill">Authorized Kinetic quote helper</span>
         </div>
         <div className="hero-copy">
           <div>
@@ -287,9 +287,22 @@ export default function GFFQuoteBuilder() {
             <span>{settings.subline}</span>
           </div>
           <div className="monthly-card">
-            <small>Estimated monthly</small>
-            <strong>{money(math.monthly)}</strong>
-            <em>{money(math.base)} plan{modemSelected ? ` + ${money(math.modem)} modem` : ""}{youtubeSelected ? ` + ${money(math.youtube)} YouTube TV` : ""}</em>
+            <small>Monthly comparison</small>
+            <div className="monthly-mini-grid">
+              <div>
+                <span>Their guy</span>
+                <strong>{money(math.current)}</strong>
+              </div>
+              <div>
+                <span>With us</span>
+                <strong>{money(math.monthly)}</strong>
+              </div>
+              <div className={math.monthlySavings >= 0 ? "mini-save good-bg" : "mini-save bad-bg"}>
+                <span>Monthly savings</span>
+                <strong>{money(math.monthlySavings)}</strong>
+              </div>
+            </div>
+            <em>{activePlan.name}{modemSelected ? ` + modem` : ""}{youtubeSelected ? ` + YouTube TV` : ""}</em>
           </div>
         </div>
       </section>
@@ -303,7 +316,7 @@ export default function GFFQuoteBuilder() {
             </div>
           </Card>
 
-          <Card label="02" title="Choose a Frontier plan">
+          <Card label="02" title="Choose a Kinetic plan">
             <div className="plan-grid">
               {settings.plans.map((plan) => {
                 const active = activePlan.id === plan.id;
@@ -315,7 +328,7 @@ export default function GFFQuoteBuilder() {
                       <div><strong>{plan.name}</strong><em>{plan.speed}</em></div>
                       <b>{money(Math.max(0, cardMonthly))}<small>/mo</small></b>
                     </div>
-                    <p>{plan.details?.[0] || plan.badge || "Frontier fiber plan"}</p>
+                    <p>{plan.details?.[0] || plan.badge || "Kinetic fiber plan"}</p>
                     <div className="plan-base">{money(plan.price)}/mo base{modemSelected ? ` + ${money(settings.modem.price)} modem` : ""}{youtubeSelected ? ` + ${money(settings.youtubeTv.price)} TV` : ""}</div>
                   </button>
                 );
@@ -380,9 +393,9 @@ export default function GFFQuoteBuilder() {
 
             <div className="five-totals">
               <div><span>Current provider</span><strong>{money(math.firstFiveCurrent)}</strong></div>
-              <div><span>Frontier before card</span><strong>{money(math.firstFiveFrontierBeforeReward)}</strong></div>
+              <div><span>Kinetic before card</span><strong>{money(math.firstFiveFrontierBeforeReward)}</strong></div>
               {math.reward > 0 && <div><span>Mastercard credit</span><strong>-{money(math.reward)}</strong></div>}
-              <div className="net"><span>Frontier effective total</span><strong>{money(math.firstFiveFrontier)}</strong></div>
+              <div className="net"><span>Kinetic effective total</span><strong>{money(math.firstFiveFrontier)}</strong></div>
             </div>
 
             <div className="month-strip">
@@ -396,12 +409,13 @@ export default function GFFQuoteBuilder() {
             </div>
           </section>
 
-          <div className="comparison">
-            <div><span>Current bill</span><strong>{money(math.current)}</strong></div>
-            <div><span>{activePlan.name}</span><strong>{money(math.base)}</strong></div>
-            {settings.modem.enabled && modemSelected && <div><span>Modem rental</span><strong>+{money(math.modem)}</strong></div>}
-            {settings.youtubeTv.enabled && youtubeSelected && <div><span>YouTube TV</span><strong>+{money(math.youtube)}</strong></div>}
-            <div className="total"><span>Estimated monthly</span><strong>{money(math.monthly)}</strong></div>
+          <div className="comparison monthly-clarity">
+            <div className="their-guy"><span>They pay now</span><strong>{money(math.current)}</strong></div>
+            <div className="our-total"><span>They pay with us</span><strong>{money(math.monthly)}</strong></div>
+            <div className={math.monthlySavings >= 0 ? "save-line good-line" : "save-line bad-line"}><span>Monthly savings</span><strong>{money(math.monthlySavings)}</strong></div>
+            <div className="detail"><span>{activePlan.name}</span><strong>{money(math.base)}</strong></div>
+            {settings.modem.enabled && modemSelected && <div className="detail"><span>Modem rental</span><strong>+{money(math.modem)}</strong></div>}
+            {settings.youtubeTv.enabled && youtubeSelected && <div className="detail"><span>YouTube TV</span><strong>+{money(math.youtube)}</strong></div>}
           </div>
 
           <button className="reset-button" onClick={resetQuote}>Reset quote</button>
@@ -640,6 +654,30 @@ const css = `
   .check{display:flex;gap:6px;align-items:center;color:#4b5563;font-size:12px;font-weight:900}
   .admin-checks{display:flex;flex-wrap:wrap;gap:14px;margin-top:14px}
   .admin-checks label{display:flex;gap:8px;align-items:center}
+
+
+  .monthly-mini-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+  .monthly-mini-grid div{border-radius:16px;background:rgba(255,255,255,.12);padding:11px;text-align:left}
+  .monthly-mini-grid div span{display:block;margin:0 0 4px;color:#dbe3ef;font-size:10px;font-weight:1000;text-transform:uppercase;letter-spacing:.1em}
+  .monthly-mini-grid div strong{display:block;color:#fff;font-size:30px;letter-spacing:-.06em;line-height:1}
+  .monthly-mini-grid .mini-save{grid-column:1 / -1}
+  .monthly-mini-grid .mini-save.good-bg{background:#dfff00}
+  .monthly-mini-grid .mini-save.good-bg span{color:#02002f}
+  .monthly-mini-grid .mini-save.good-bg strong{color:#02002f}
+  .monthly-mini-grid .mini-save.bad-bg{background:#fee2e2}
+  .monthly-mini-grid .mini-save.bad-bg span,.monthly-mini-grid .mini-save.bad-bg strong{color:#991b1b}
+  .monthly-clarity{border-radius:22px;background:#f5f7f1;padding:10px}
+  .comparison.monthly-clarity div{border-radius:14px;background:#fff}
+  .comparison.monthly-clarity .their-guy{background:#eef3ea}
+  .comparison.monthly-clarity .our-total{background:#02002f;color:#fff}
+  .comparison.monthly-clarity .our-total span{color:#fff}
+  .comparison.monthly-clarity .save-line{border:2px solid #dfff00}
+  .comparison.monthly-clarity .good-line{background:#f9ffe5}
+  .comparison.monthly-clarity .good-line strong{color:#169b62}
+  .comparison.monthly-clarity .bad-line{background:#fee2e2;border-color:#fecaca}
+  .comparison.monthly-clarity .bad-line strong{color:#991b1b}
+  .comparison.monthly-clarity .detail{background:#fff;color:#02002f;padding-top:9px;padding-bottom:9px}
+  .comparison.monthly-clarity .detail span{font-size:13px}
 
   @media(max-width:1120px){
     .quote-grid{grid-template-columns:1fr}
