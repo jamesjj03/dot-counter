@@ -1,0 +1,9 @@
+Patched app/sales/page.jsx.
+
+Fixes:
+- Rebuilt the First 5 months section into the main side-by-side feature.
+- Shows Current provider total vs Kinetic total clearly.
+- Shows first 5-month savings as the big punchline.
+- Keeps Mastercard note separate and clean when enabled.
+- Keeps month-by-month breakdown underneath in clean boxes.
+- Settings key bumped to kinetic_v7.

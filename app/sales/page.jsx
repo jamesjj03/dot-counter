@@ -8,8 +8,8 @@ const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const supabase = SUPABASE_URL && SUPABASE_ANON_KEY ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 
 const CLOUD_TABLE = "app_state";
-const CLOUD_ID = "gff_os_quote_settings_kinetic_v6";
-const LOCAL_KEY = "gff_os_quote_settings_kinetic_v6";
+const CLOUD_ID = "gff_os_quote_settings_kinetic_v7";
+const LOCAL_KEY = "gff_os_quote_settings_kinetic_v7";
 const PIN = "6969";
 
 const DEFAULT_SETTINGS = {
@@ -383,28 +383,49 @@ export default function GFFQuoteBuilder() {
             </div>
           </div>
 
-          <section className="five-month-card">
-            <div className="five-head">
-              <div>
-                <span>First 5 months</span>
-                <strong>{wholeMoney(math.firstFiveSavings)} saved</strong>
+          <section className="five-month-card five-month-feature">
+            <div className="five-feature-head">
+              <span>First 5 months</span>
+              <strong>{wholeMoney(math.firstFiveSavings)} saved</strong>
+              <p>Compare what the customer keeps paying now against what the first five months look like with Kinetic.</p>
+            </div>
+
+            <div className="five-side-by-side">
+              <div className="five-side current-five">
+                <span>Current provider</span>
+                <strong>{money(math.firstFiveCurrent)}</strong>
+                <em>{money(math.current)}/mo × 5 months</em>
               </div>
-              <b>{money(math.effectiveFiveMonthAverage)}<small>/mo avg</small></b>
+
+              <div className="five-side kinetic-five">
+                <span>Kinetic</span>
+                <strong>{money(math.firstFiveFrontier)}</strong>
+                <em>
+                  {money(math.monthly)}/mo × 5
+                  {math.reward > 0 ? ` minus ${money(math.reward)} Mastercard` : ""}
+                </em>
+              </div>
             </div>
 
-            <div className="five-totals">
-              <div><span>Current provider</span><strong>{money(math.firstFiveCurrent)}</strong></div>
-              <div><span>Kinetic before card</span><strong>{money(math.firstFiveFrontierBeforeReward)}</strong></div>
-              {math.reward > 0 && <div><span>Mastercard credit</span><strong>-{money(math.reward)}</strong></div>}
-              <div className="net"><span>Kinetic effective total</span><strong>{money(math.firstFiveFrontier)}</strong></div>
+            <div className={math.firstFiveSavings >= 0 ? "five-savings-punch good-five" : "five-savings-punch bad-five"}>
+              <span>First 5-month savings</span>
+              <strong>{money(math.firstFiveSavings)}</strong>
+              <em>Effective average: {money(math.effectiveFiveMonthAverage)}/mo</em>
             </div>
 
-            <div className="month-strip">
+            {math.reward > 0 && (
+              <div className="mastercard-note">
+                <span>$100 Mastercard applied after 90 days</span>
+                <strong>-{money(math.reward)}</strong>
+              </div>
+            )}
+
+            <div className="month-strip clean-month-strip">
               {math.monthRows.map((row) => (
                 <div key={row.month}>
-                  <span>M{row.month}</span>
+                  <span>Month {row.month}</span>
                   <strong>{money(row.outOfPocket)}</strong>
-                  {row.rewardApplied > 0 && <em>{money(row.rewardApplied)} card</em>}
+                  {row.rewardApplied > 0 && <em>{money(row.rewardApplied)} card applied</em>}
                 </div>
               ))}
             </div>
@@ -740,6 +761,36 @@ const css = `
   .price-breakdown span{color:#4b5563;font-weight:850}
   .price-breakdown strong{font-weight:1000}
 
+
+  .five-month-feature{background:#ffffff;border:2px solid #dfff00;box-shadow:0 16px 38px rgba(2,0,47,.10)}
+  .five-feature-head{display:grid;gap:3px;margin-bottom:12px}
+  .five-feature-head span{color:#169b62;font-size:11px;font-weight:1000;text-transform:uppercase;letter-spacing:.14em}
+  .five-feature-head strong{color:#02002f;font-size:34px;letter-spacing:-.07em;line-height:1}
+  .five-feature-head p{margin:3px 0 0;color:#4b5563;font-size:13px;font-weight:800;line-height:1.35}
+  .five-side-by-side{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .five-side{border-radius:18px;padding:14px;border:1px solid rgba(2,0,47,.10)}
+  .current-five{background:#f3f6ef}
+  .kinetic-five{background:#02002f;color:#fff}
+  .five-side span{display:block;color:#4b5563;font-size:11px;font-weight:1000;text-transform:uppercase;letter-spacing:.12em}
+  .kinetic-five span{color:#dfff00}
+  .five-side strong{display:block;font-size:34px;letter-spacing:-.07em;line-height:1;margin-top:5px}
+  .five-side em{display:block;margin-top:6px;color:#4b5563;font-size:12px;font-style:normal;font-weight:850;line-height:1.25}
+  .kinetic-five em{color:#dbe3ef}
+  .five-savings-punch{margin-top:10px;border-radius:18px;padding:15px;text-align:center}
+  .five-savings-punch span{display:block;font-size:11px;font-weight:1000;text-transform:uppercase;letter-spacing:.12em}
+  .five-savings-punch strong{display:block;font-size:46px;letter-spacing:-.08em;line-height:1;margin-top:2px}
+  .five-savings-punch em{display:block;margin-top:5px;font-size:12px;font-style:normal;font-weight:900}
+  .good-five{background:#dfff00;color:#02002f}
+  .bad-five{background:#fee2e2;color:#991b1b}
+  .mastercard-note{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:10px;border-radius:14px;background:#f9ffe5;border:1px solid #dfff00;padding:11px}
+  .mastercard-note span{font-size:12px;font-weight:1000;color:#02002f}
+  .mastercard-note strong{font-size:18px;font-weight:1000;color:#169b62}
+  .clean-month-strip{grid-template-columns:repeat(5,1fr);margin-top:10px}
+  .clean-month-strip div{background:#f5f7f1}
+  .clean-month-strip span{font-size:10px}
+  .clean-month-strip strong{font-size:16px}
+  .clean-month-strip em{font-size:9px;line-height:1.1}
+
   @media(max-width:1120px){
     .quote-grid{grid-template-columns:1fr}
     .summary-card{position:relative;top:auto}
@@ -761,6 +812,10 @@ const css = `
     .summary-row-pair{grid-template-columns:1fr}
 
     .monthly-side-by-side,.side-boxes{grid-template-columns:1fr}
+
+    .five-side-by-side{grid-template-columns:1fr}
+    .clean-month-strip{grid-template-columns:repeat(5,minmax(84px,1fr));overflow-x:auto}
+
 
     .month-strip{grid-template-columns:repeat(5,minmax(62px,1fr));overflow-x:auto}
     .reward-box{max-width:none}
