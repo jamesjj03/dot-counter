@@ -1227,7 +1227,16 @@ export default function GFFOSOps() {
   };
 
   const stopDrag = (e) => {
-    e?.currentTarget?.releasePointerCapture?.(e.pointerId);
+    try {
+      if (e?.currentTarget?.hasPointerCapture?.(e.pointerId)) {
+        if (e.currentTarget?.hasPointerCapture?.(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    };
+      }
+    } catch (err) {
+      // Pointer was already released. Safe to ignore.
+    }
+
     setDragState(null);
   };
 
@@ -2149,9 +2158,9 @@ function MapPanel({ fileRef, upload, activeShot, canvasRef, overlayRef, canvasCl
 function TurfLegend({ turfs }) {
   if (!turfs?.length) return null;
   const grouped = turfs.reduce((acc, turf) => {
-    if (!acc[turf.rep]) acc[turf.rep] = { rep: turf.rep, zones: 0, leads: 0, sold: 0, total: 0 };
+    if (!acc[turf.rep]) acc[turf.rep] = { rep: turf.rep, zones: 0, knockable: 0, sold: 0, total: 0 };
     acc[turf.rep].zones += 1;
-    acc[turf.rep].leads += turf.counts?.yellow || 0;
+    acc[turf.rep].knockable += (turf.counts?.gray || 0) + (turf.counts?.yellow || 0) + (turf.counts?.brown || 0);
     acc[turf.rep].sold += turf.counts?.pink || 0;
     acc[turf.rep].total += turf.counts?.total || 0;
     return acc;
@@ -2172,8 +2181,8 @@ function TurfLegend({ turfs }) {
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div className="rounded-2xl bg-[#27AE60] p-3 text-center font-black text-black">
-                <p className="text-xs uppercase opacity-70">Leads</p>
-                <p className="text-2xl">{row.leads}</p>
+                <p className="text-xs uppercase opacity-70">Knockable</p>
+                <p className="text-2xl">{row.knockable}</p>
               </div>
               <div className="rounded-2xl bg-black p-3 text-center font-black text-white">
                 <p className="text-xs uppercase opacity-70">Zones</p>
@@ -2187,9 +2196,9 @@ function TurfLegend({ turfs }) {
   );
 }
 
-function AreaDeck({ areas, switchArea, setMode, admin }) { return <Panel><h2 className="mb-5 flex items-center text-4xl font-black"><Layers className="mr-3 h-9 w-9" /> Areas Command Deck</h2>{areas.length === 0 ? <div className="rounded-3xl bg-white/[0.08] p-10 text-center"><h3 className="text-4xl font-black">No areas yet</h3><p className="mt-2 text-xl font-bold text-white/50">Unlock Sam Admin, create an area, upload screenshots.</p></div> : <div className="grid gap-4 lg:grid-cols-2">{areas.map((a) => { const leads = (a.screenshots || []).reduce((s, shot) => s + (shot.detections?.lead?.length || 0), 0); return <button key={a.id} onClick={() => { switchArea(a.id); setMode("count"); }} className="rounded-[2rem] bg-black p-6 text-left text-white shadow-xl transition hover:-translate-y-1"><h3 className="text-3xl font-black">{a.name}</h3><p className="mt-1 text-lg font-bold text-white/60">{a.screenshots?.length || 0} screenshots • {a.turfs?.length || 0} zones</p><p className="mt-5 text-7xl font-black text-[#27AE60]">{leads}</p><p className="text-sm font-black uppercase tracking-widest text-white/50">leads</p></button>; })}</div>}</Panel>; }
+function AreaDeck({ areas, switchArea, setMode, admin }) { return <Panel><h2 className="mb-5 flex items-center text-4xl font-black"><Layers className="mr-3 h-9 w-9" /> Areas Command Deck</h2>{areas.length === 0 ? <div className="rounded-3xl bg-white/[0.08] p-10 text-center"><h3 className="text-4xl font-black">No areas yet</h3><p className="mt-2 text-xl font-bold text-white/50">Unlock Sam Admin, create an area, upload screenshots.</p></div> : <div className="grid gap-4 lg:grid-cols-2">{areas.map((a) => { const leads = (a.screenshots || []).reduce((s, shot) => s + (shot.detections?.lead?.length || 0) + (shot.detections?.unchecked?.length || 0) + (shot.detections?.brown?.length || 0), 0); return <button key={a.id} onClick={() => { switchArea(a.id); setMode("count"); }} className="rounded-[2rem] bg-black p-6 text-left text-white shadow-xl transition hover:-translate-y-1"><h3 className="text-3xl font-black">{a.name}</h3><p className="mt-1 text-lg font-bold text-white/60">{a.screenshots?.length || 0} screenshots • {a.turfs?.length || 0} zones</p><p className="mt-5 text-7xl font-black text-[#27AE60]">{leads}</p><p className="text-sm font-black uppercase tracking-widest text-white/50">knockable homes</p></button>; })}</div>}</Panel>; }
 function TeamView({ teamStats, teamRep, setTeamRep, teamTurfs, admin, deleteTurf, setSelectedRep, setMode }) {
-  const activeStats = teamStats.find((s) => s.rep === teamRep) || { leads: 0, sold: 0, zones: 0 };
+  const activeStats = teamStats.find((s) => s.rep === teamRep) || { knockable: 0, sold: 0, zones: 0 };
 
   return (
     <div className="space-y-4">
@@ -2206,7 +2215,7 @@ function TeamView({ teamStats, teamRep, setTeamRep, teamTurfs, admin, deleteTurf
         </div>
         <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
           {REPS.map((r) => {
-            const stat = teamStats.find((s) => s.rep === r) || { leads: 0, sold: 0, zones: 0 };
+            const stat = teamStats.find((s) => s.rep === r) || { knockable: 0, sold: 0, zones: 0 };
             return (
               <button key={r} onClick={() => setTeamRep(r)} className={`rounded-2xl border p-3 text-left transition ${teamRep === r ? "border-[#27AE60] bg-black shadow-lg shadow-[#27AE60]/10" : "border-white/10 bg-white/[0.06]"}`}>
                 <div className="mb-2 flex items-center gap-2">
@@ -2225,7 +2234,7 @@ function TeamView({ teamStats, teamRep, setTeamRep, teamTurfs, admin, deleteTurf
         <div className="mb-4 flex items-center justify-between gap-3">
           <div>
             <h3 className="text-2xl font-black" style={{ color: repColor(teamRep) }}>{teamRep}'s Turf</h3>
-            <p className="text-sm font-bold text-white/45">{activeStats.leads} leads • {activeStats.zones} zones</p>
+            <p className="text-sm font-bold text-white/45">{activeStats.knockable || 0} knockable • {activeStats.zones} zones</p>
           </div>
           <div className="flex gap-2">
             <button type="button" onClick={() => { setSelectedRep(teamRep); setMode("manual"); }} className="rounded-xl bg-black px-4 py-2 text-sm font-black text-[#27AE60]">Map</button>
@@ -2246,7 +2255,7 @@ function TeamView({ teamStats, teamRep, setTeamRep, teamTurfs, admin, deleteTurf
                   {admin && <button onClick={() => deleteTurf(t.id)} className="text-red-300"><Trash2 /></button>}
                 </div>
                 <div className="grid grid-cols-1 gap-2">
-                  <MiniStat label="Leads" value={t.counts?.yellow || 0} className="bg-[#27AE60] text-black" />
+                  <MiniStat label="Knockable" value={(t.counts?.gray || 0) + (t.counts?.yellow || 0) + (t.counts?.brown || 0)} className="bg-[#27AE60] text-black" />
                 </div>
               </div>
             ))}
